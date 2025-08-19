@@ -1,52 +1,14 @@
 services:
-  remote-cli-new:
-    image: gui:latest
-    container_name: gui
+  remote-gui:
+    image: anylogco/remote-gui:latest
+    container_name: remote-gui
     restart: always
     stdin_open: true
     tty: true
-#    networks:
-#      - mynetwork
     ports:
       - "3000:3000"
       - "3001:3001"
       - "8000:8000"
     volumes:
-      - gui-vol:/app/CLI/Local-CLI/local-cli-backend/static/
-#  edgelake-node:
-#    image: anylogco/edgelake:latest
-#    restart: always
-#    container_name: edgelake-node
-#    env_file:
-#      - ../docker-makefiles/edgelake_generic.env
-#      - .env
-#    stdin_open: true
-#    cap_add:
-#      - NET_ADMIN
-#    devices:
-#      - "/dev/net/tun:/dev/net/tun"
-#    tty: true
-#    networks:
-#      - mynetwork
-#    ports:
-#      - "32548:32548"
-#      - "32549:32549"
-#    volumes:
-#      - nebula-overlay:/app/nebula
-#      - edgelake-node-anylog:/app/EdgeLake/anylog
-#      - edgelake-node-blockchain:/app/EdgeLake/blockchain
-#      - edgelake-node-data:/app/EdgeLake/data
-#      - edgelake-node-local-scripts:/app/deployment-scripts
-#      - gui-vol:/app/CLI/Local-CLI/local-cli-backend/static/
-volumes:
-#  edgelake-node-anylog:
-#  edgelake-node-blockchain:
-#  edgelake-node-data:
-#  edgelake-node-local-scripts:
-#  nebula-overlay:
-  remote-cli:
-  remote-cli-current:
-  gui-vol:
-#networks:
-#  mynetwork:
-#    driver: bridge
+      - image-vol:/app/CLI/local-cli-backend/static/
+      - usr-mgm-vol:/app/CLI/local-cli/backend/usr-mgm/
