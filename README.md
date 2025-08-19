@@ -1,8 +1,51 @@
-# Local-CLI Project
+# Remote-GUI
 
 ## Overview
 
-The Local-CLI project is a command-line interface tool designed to simplify and automate tasks for local development. This guide will help you set up and run the project on your machine.
+The **Remote-GUI** is a command-line and web-based interface tool designed to simplify and automate tasks for local development.  
+This guide will help you set up and run the project on your machine.
+
+* [Documentation](#)
+* [Dockerization](#dockerization)
+  * [Package Docker](#package-docker-image)
+  * [Run Image](#run-docker-image)
+* [Prerequisites](#prerequisites)
+* [Backend](#backend)
+* [Frontend](#frontend)
+* [Supabase](#supabase)
+* [Anylog API](#anylog-api)
+* [Usage](#usage)
+* [Feature Docs](#feature-docs)
+
+---
+
+## Dockerization
+
+### Package Docker Image
+
+```bash
+docker build -f Dockerfile . -t anylogco/remote-gui:latest
+```
+
+### Run Docker Image
+
+**Volumes used:**  
+- `image-vol:/app/CLI/local-cli-backend/static/` – stores images retrieved via query requests  
+- `usr-mgm-vol:/app/CLI/local-cli/backend/usr-mgm/` – stores configurations and management files  
+
+**Basic Docker Run:**
+
+```bash
+docker run -it -p 8000:8000 -p 3001:3001 --name gui-1 --rm anylogco/remote-gui
+```
+
+**Docker Compose:**
+
+```bash
+docker compose -f ./docker-compose.yaml up -d
+```
+
+---
 
 ## Prerequisites
 
@@ -10,52 +53,54 @@ Before you begin, ensure you have the following installed:
 
 - [Node.js](https://nodejs.org/) (version 14 or higher)
 - [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
+- [Python 3](https://www.python.org/)
 - A terminal or command-line interface
 
-
-<!-- ## Installation -->
+---
 
 ## Backend
 
-1. Inside the Local-CLI directory, cd into the local-cli-backend directory and run the following command:
+1. Inside the `Local-CLI` directory, cd into `local-cli-backend`:
     ```bash
     python -m venv .
     ```
+
 2. Activate the virtual environment:
-    - On Windows (i think):
+    - Windows:
         ```bash
         .\venv\Scripts\activate
         ```
-    - On macOS/Linux:
+    - macOS/Linux:
         ```bash
         source ./venv/bin/activate
         ```
+
 3. Install the required packages:
     ```bash
     pip install -r reqs.txt
     ```
 
-    These might also come in handy:
+   Additional useful packages:
     ```bash
-    pip install python-dotenv psycopg2
-    pip install psycopg2-binary
+    pip install python-dotenv psycopg2 psycopg2-binary
     ```
 
-    Mainly uses the fastapi and requests libraries from python.
-
 4. Run the backend server:
-```bash
-fastapi dev main.py
+    ```bash
+    fastapi dev main.py
 
-# Run on cloud 
-fastapi dev CLI/Local_CLI/local_cli_backend/main.py   --host 0.0.0.0 --port 8000
-```
+    # Run on cloud
+    fastapi dev CLI/Local_CLI/local_cli_backend/main.py --host 0.0.0.0 --port 8000
+    ```
 
-5. The backend server should now be running at `http://127.0.0.1:8000`.
+5. The backend server should now be running at:  
+   👉 `http://127.0.0.1:8000`
+
+---
 
 ## Frontend
 
-1. Inside the Local-CLI directory, cd into the local-cli-fe-full directory and run the following command:
+1. Inside the `Local-CLI` directory, cd into `local-cli-fe-full` and install dependencies:
     ```bash
     npm install
     ```
@@ -63,69 +108,78 @@ fastapi dev CLI/Local_CLI/local_cli_backend/main.py   --host 0.0.0.0 --port 8000
 2. Start the frontend server:
     ```bash
     npm start
-   
-   # for ubuntu 
-   export NODE_OPTIONS=--openssl-legacy-provider
-   npm start
     ```
 
-3. Open your browser and navigate to `http://localhost:3000` to access the Local-CLI web interface.
+   On Ubuntu:
+    ```bash
+    export NODE_OPTIONS=--openssl-legacy-provider
+    npm start
+    ```
 
+3. Open your browser and go to 👉 `http://localhost:3000`
+
+---
 
 ## Supabase
 
+(Documentation pending – to be expanded in future versions.)
 
-
+---
 
 ## Anylog API
 
-Follow all the instructions of the github below to set up the Anylog API.
+Follow the instructions from the [AnyLog API GitHub Repository](https://github.com/AnyLog-co/AnyLog-API/tree/main).  
 
-https://github.com/AnyLog-co/AnyLog-API/tree/main
-
-Make sure to run this command while the venv of the backend is activated
+Run this while the backend venv is activated:
 
 ```bash
-python3 -m pip install $HOME/AnyLog-API/dist/anylog_api-0.0.0-py2.py3-none-any.whl 
+python3 -m pip install $HOME/AnyLog-API/dist/anylog_api-0.0.0-py2.py3-none-any.whl
 ```
 
+---
 
 ## Usage
 
-Set up a node using the docker-compose and use the IP and port from the docker container (usually `127.0.0.1:32049`).
+You can connect to a node in two ways:
 
-OR 
+- **Local node (via Docker Compose):** use the IP and port from the container (usually `127.0.0.1:32049`).  
+- **Hosted node:** use `23.239.12.151:32349`.
 
-Use `23.239.12.151:32349` as the IP and port to connect to a hosted node.
+---
 
+## Docker (Alternative Build/Run)
 
-## Docker 
-1. To build - `docker build -f Dockerfile . -t gui`
-2. To run 
-   * Local 
-```shell
-docker run -it --rm -p 8000:8000 -p 3001:3001 -e REACT_APP_API_URL=http://127.0.0.1:8000   --name gui oshadmon/gui:test
-```
-   * Production
-```shell
-docker run -d \
-  --name gui \
-  -p 8000:8000 \
-  -p 3001:3001 \
-  -e REACT_APP_API_URL=http:/${EXTERNAL_IP}:8000 \
-  -e FRONTEND_URL=http://${EXTERNAL_IP}:3001 \
-  oshadmon/gui:test
-```
+1. Build:
+   ```bash
+   docker build -f Dockerfile . -t gui
+   ```
 
+2. Run (local):
+   ```bash
+   docker run -it --rm -p 8000:8000 -p 3001:3001      -e REACT_APP_API_URL=http://127.0.0.1:8000      --name gui oshadmon/gui:test
+   ```
 
+3. Run (production):
+   ```bash
+   docker run -d      --name gui      -p 8000:8000      -p 3001:3001      -e REACT_APP_API_URL=http://${EXTERNAL_IP}:8000      -e FRONTEND_URL=http://${EXTERNAL_IP}:3001      oshadmon/gui:test
+   ```
 
+---
 
 # Feature Docs
 
 ## Client
 
+(Coming soon)
+
 ## Monitor
+
+(Coming soon)
 
 ## Policies
 
+(Coming soon)
+
 ## AddData
+
+(Coming soon)
