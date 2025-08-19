@@ -159,7 +159,7 @@ def view_blobs(conn: Connection, blobs: dict):
         file_list.append(operator_file)
 
         # blobs_dir = "/app/Remote-CLI/djangoProject/static/blobs/current/"
-        blobs_dir = "/app/CLI/Local-CLI/local-cli-backend/static/"
+        blobs_dir = "/app/CLI/local-cli-backend/static/"
         print("IP:Port", ip_port)
 
         # cmd = f'run client ({ip_port}) file get !!blockchain_file !blockchain_file'
