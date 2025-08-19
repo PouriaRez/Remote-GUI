@@ -10,11 +10,11 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and install deps
-COPY CLI/Local-CLI/local-cli-fe-full/package*.json ./
+COPY CLI/local-cli-fe-full/package*.json ./
 RUN npm install --legacy-peer-deps --no-audit --progress=false
 
 # Copy rest of the frontend source
-COPY CLI/Local-CLI/local-cli-fe-full ./
+COPY CLI/local-cli-fe-full ./
 
 # Build-time API URL (can be overridden at build time)
 ARG REACT_APP_API_URL=http://127.0.0.1:8000
@@ -79,7 +79,7 @@ COPY --from=backend /app/templates templates/
 COPY --from=backend /app/CLI CLI/
 COPY --from=backend /app/start.sh /app/start.sh
 # Copy built frontend from frontend stage
-COPY --from=frontend /app/build /app/CLI/Local-CLI/local-cli-fe-full/build
+COPY --from=frontend /app/build /app/CLI/local-cli-fe-full/build
 
 
 # Install runtime dependencies
