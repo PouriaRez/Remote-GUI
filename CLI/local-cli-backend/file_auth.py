@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 
-# # File paths for data storage
+# # Old File paths for data storage
 # USERS_FILE = "usr-mgm/users.json"
 # BOOKMARKS_FILE = "usr-mgm/bookmarks.json"
 # PRESETS_FILE = "usr-mgm/presets.json"
