@@ -82,13 +82,20 @@ COPY --from=backend /app/start.sh /app/start.sh
 COPY --from=frontend /app/build /app/CLI/local-cli-fe-full/build
 
 
-# Install runtime dependencies
+# # Install runtime dependencies
+# RUN apt-get update && apt-get install -y --no-install-recommends npm xsel && \
+#     sed -i 's/\r$//' /app/start.sh && \
+#     chmod +x /app/start.sh && \
+#     rm -rf /var/lib/apt/lists/*
+
+# Install runtime dependencies (npm is already installed, add serve)
 RUN apt-get update && apt-get install -y --no-install-recommends npm xsel && \
+    npm install -g serve && \
     sed -i 's/\r$//' /app/start.sh && \
     chmod +x /app/start.sh && \
     rm -rf /var/lib/apt/lists/*
 
-
+    
 EXPOSE 8000 3001
 
 ENTRYPOINT ["/app/start.sh"]
