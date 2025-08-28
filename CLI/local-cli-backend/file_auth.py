@@ -4,46 +4,103 @@ import os
 import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
+import tempfile
+from pathlib import Path
 
-# File paths for data storage
-USERS_FILE = "usr-mgm/users.json"
-BOOKMARKS_FILE = "usr-mgm/bookmarks.json"
-PRESETS_FILE = "usr-mgm/presets.json"
-PRESET_GROUPS_FILE = "usr-mgm/preset_groups.json"
+
+# # Old File paths for data storage
+# USERS_FILE = "usr-mgm/users.json"
+# BOOKMARKS_FILE = "usr-mgm/bookmarks.json"
+# PRESETS_FILE = "usr-mgm/presets.json"
+# PRESET_GROUPS_FILE = "usr-mgm/preset_groups.json"
+
+# Base data directory (configurable via env; default to backend/usr-mgm next to this file)
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "usr-mgm"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+USERS_FILE = DATA_DIR / "users.json"
+BOOKMARKS_FILE = DATA_DIR / "bookmarks.json"
+PRESETS_FILE = DATA_DIR / "presets.json"
+PRESET_GROUPS_FILE = DATA_DIR / "preset_groups.json"
+
+_DEFAULTS: Dict[Path, Dict] = {
+    USERS_FILE: {"users": []},
+    BOOKMARKS_FILE: {"bookmarks": {}},
+    PRESETS_FILE: {"presets": []},
+    PRESET_GROUPS_FILE: {"preset_groups": []},
+}
+
+def _read_json(path: Path) -> Dict:
+    try:
+        if path.exists():
+            with path.open("r") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading {path}: {e}")
+    return _DEFAULTS.get(path, {})
+
+def _write_json_atomic(path: Path, data: Dict):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile("w", dir=str(path.parent), delete=False) as t:
+            json.dump(data, t, indent=2)
+            t.flush()
+            os.fsync(t.fileno())
+            tmp = t.name
+        os.replace(tmp, path)  # atomic on POSIX
+    except Exception as e:
+        print(f"Error saving {path}: {e}")
+        raise
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+
+# keep your existing functions, but switch to the helpers:
+def load_json_file(filename: str) -> Dict:
+    # now filename is a Path
+    return _read_json(filename)
+
+def save_json_file(filename: str, data: Dict):
+    _write_json_atomic(filename, data)
+
+# def load_json_file(filename: str) -> Dict:
+#     """Load data from a JSON file"""
+#     try:
+#         if os.path.exists(filename):
+#             with open(filename, 'r') as f:
+#                 return json.load(f)
+#         else:
+#             # Return default structure if file doesn't exist
+#             if filename == USERS_FILE:
+#                 return {"users": []}
+#             elif filename == BOOKMARKS_FILE:
+#                 return {"bookmarks": {}}  # Changed to nested structure
+#             elif filename == PRESETS_FILE:
+#                 return {"presets": []}
+#             elif filename == PRESET_GROUPS_FILE:
+#                 return {"preset_groups": []}
+#             else:
+#                 return {}
+#     except Exception as e:
+#         print(f"Error loading {filename}: {e}")
+#         return {}
+
+# def save_json_file(filename: str, data: Dict):
+#     """Save data to a JSON file"""
+#     try:
+#         with open(filename, 'w') as f:
+#             json.dump(data, f, indent=2)
+#     except Exception as e:
+#         print(f"Error saving {filename}: {e}")
 
 def hash_password(password: str) -> str:
     """Hash a password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
-
-def load_json_file(filename: str) -> Dict:
-    """Load data from a JSON file"""
-    try:
-        if os.path.exists(filename):
-            with open(filename, 'r') as f:
-                return json.load(f)
-        else:
-            # Return default structure if file doesn't exist
-            if filename == USERS_FILE:
-                return {"users": []}
-            elif filename == BOOKMARKS_FILE:
-                return {"bookmarks": {}}  # Changed to nested structure
-            elif filename == PRESETS_FILE:
-                return {"presets": []}
-            elif filename == PRESET_GROUPS_FILE:
-                return {"preset_groups": []}
-            else:
-                return {}
-    except Exception as e:
-        print(f"Error loading {filename}: {e}")
-        return {}
-
-def save_json_file(filename: str, data: Dict):
-    """Save data to a JSON file"""
-    try:
-        with open(filename, 'w') as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print(f"Error saving {filename}: {e}")
 
 def file_signup(email: str, password: str, firstname: str, lastname: str) -> Dict:
     """Register a new user"""
