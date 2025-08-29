@@ -29,6 +29,7 @@ const SqlQueryGenerator = ({ node }) => {
   const [groupBy, setGroupBy] = useState('');
   const [groupByColumns, setGroupByColumns] = useState([]);
   const [orderBy, setOrderBy] = useState('');
+  const [orderByColumns, setOrderByColumns] = useState([]);
   const [limit, setLimit] = useState('');
   const [format, setFormat] = useState('json');
   const [timezone, setTimezone] = useState('utc');
@@ -100,7 +101,7 @@ const SqlQueryGenerator = ({ node }) => {
   // Update query when selections change
   useEffect(() => {
     buildQuery();
-  }, [selectedColumns, whereConditions, periods, groupBy, groupByColumns, orderBy, limit, format, timezone, distinct, aggregations, joins, useIncrements, incrementsUnit, incrementsInterval, incrementsDateColumn, columnMode, timeSeriesMode, includeTables, extendFields, useTargetNodes, selectedNodes, operatorFilters]);
+  }, [selectedColumns, whereConditions, periods, groupBy, groupByColumns, orderBy, orderByColumns, limit, format, timezone, distinct, aggregations, joins, useIncrements, incrementsUnit, incrementsInterval, incrementsDateColumn, columnMode, timeSeriesMode, includeTables, extendFields, useTargetNodes, selectedNodes, operatorFilters]);
 
   const fetchDatabases = async () => {
     setLoading(true);
@@ -369,14 +370,20 @@ const SqlQueryGenerator = ({ node }) => {
     
     // Add GROUP BY clause
     if (groupByColumns.length > 0) {
-      anylogQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+      anylogQuery += ` and GROUP BY ${groupByColumns.join(', ')}`;
     } else if (groupBy.trim()) {
-      anylogQuery += ` GROUP BY ${groupBy}`;
+      anylogQuery += ` and GROUP BY ${groupBy}`;
     }
     
     // Add ORDER BY clause
-    if (orderBy.trim()) {
-      anylogQuery += ` ORDER BY ${orderBy}`;
+    if (orderByColumns.length > 0) {
+      const orderByClause = orderByColumns.map(col => {
+        const direction = col.direction || 'ASC';
+        return `${col.column} ${direction}`;
+      }).join(', ');
+      anylogQuery += ` and ORDER BY ${orderByClause}`;
+    } else if (orderBy.trim()) {
+      anylogQuery += ` and ORDER BY ${orderBy}`;
     }
     
     // Add LIMIT clause
@@ -424,6 +431,37 @@ const SqlQueryGenerator = ({ node }) => {
 
   const handleClearGroupByColumns = () => {
     setGroupByColumns([]);
+  };
+
+  const handleOrderByColumnToggle = (column) => {
+    setOrderByColumns(prev => {
+      const existingIndex = prev.findIndex(col => col.column === column);
+      if (existingIndex >= 0) {
+        return prev.filter(col => col.column !== column);
+      } else {
+        return [...prev, { column, direction: 'ASC' }];
+      }
+    });
+  };
+
+  const handleSelectAllOrderByColumns = () => {
+    const newOrderByColumns = columns.map(col => ({
+      column: col.column_name || col.name,
+      direction: 'ASC'
+    }));
+    setOrderByColumns(newOrderByColumns);
+  };
+
+  const handleClearOrderByColumns = () => {
+    setOrderByColumns([]);
+  };
+
+  const handleOrderByDirectionChange = (column, direction) => {
+    setOrderByColumns(prev => 
+      prev.map(col => 
+        col.column === column ? { ...col, direction } : col
+      )
+    );
   };
 
   const fetchOperators = async () => {
@@ -609,6 +647,7 @@ const SqlQueryGenerator = ({ node }) => {
     setGroupBy('');
     setGroupByColumns([]);
     setOrderBy('');
+    setOrderByColumns([]);
     setLimit('');
     setFormat('json');
     setTimezone('utc');
@@ -1588,6 +1627,64 @@ const SqlQueryGenerator = ({ node }) => {
                 {groupByColumns.length > 0 && (
                   <div className="group-by-preview">
                     <code>GROUP BY {groupByColumns.join(', ')}</code>
+                  </div>
+                )}
+              </div>
+              
+              <div className="order-by-section">
+                <div className="section-header">
+                  <h4>ORDER BY</h4>
+                  <div className="order-by-actions">
+                    <button onClick={handleSelectAllOrderByColumns} className="btn-secondary">Select All</button>
+                    <button onClick={handleClearOrderByColumns} className="btn-secondary">Clear All</button>
+                  </div>
+                </div>
+                <p className="section-description">
+                  Order your results by selected columns. You can specify ascending (ASC) or descending (DESC) order for each column.
+                </p>
+                <div className="order-by-columns-grid">
+                  {columns.map((column, index) => {
+                    const isSelected = orderByColumns.some(col => col.column === (column.column_name || column.name));
+                    const selectedColumn = orderByColumns.find(col => col.column === (column.column_name || column.name));
+                    return (
+                      <div 
+                        key={index} 
+                        className={`order-by-column-item ${isSelected ? 'selected' : ''}`}
+                        onClick={() => handleOrderByColumnToggle(column.column_name || column.name)}
+                      >
+                        <span className="column-name">{column.column_name || column.name}</span>
+                        <span className="column-type">{column.data_type || column.type}</span>
+                        {isSelected && (
+                          <div className="direction-buttons">
+                            <button
+                              className={`direction-btn ${selectedColumn.direction === 'ASC' ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOrderByDirectionChange(column.column_name || column.name, 'ASC');
+                              }}
+                              title="Ascending"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              className={`direction-btn ${selectedColumn.direction === 'DESC' ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOrderByDirectionChange(column.column_name || column.name, 'DESC');
+                              }}
+                              title="Descending"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {orderByColumns.length > 0 && (
+                  <div className="order-by-preview">
+                    <code>ORDER BY {orderByColumns.map(col => `${col.column} ${col.direction}`).join(', ')}</code>
                   </div>
                 )}
               </div>
