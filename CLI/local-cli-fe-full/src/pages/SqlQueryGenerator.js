@@ -370,9 +370,9 @@ const SqlQueryGenerator = ({ node }) => {
     
     // Add GROUP BY clause
     if (groupByColumns.length > 0) {
-      anylogQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+      anylogQuery += ` and GROUP BY ${groupByColumns.join(', ')}`;
     } else if (groupBy.trim()) {
-      anylogQuery += ` GROUP BY ${groupBy}`;
+      anylogQuery += ` and GROUP BY ${groupBy}`;
     }
     
     // Add ORDER BY clause
@@ -381,9 +381,9 @@ const SqlQueryGenerator = ({ node }) => {
         const direction = col.direction || 'ASC';
         return `${col.column} ${direction}`;
       }).join(', ');
-      anylogQuery += ` ORDER BY ${orderByClause}`;
+      anylogQuery += ` and ORDER BY ${orderByClause}`;
     } else if (orderBy.trim()) {
-      anylogQuery += ` ORDER BY ${orderBy}`;
+      anylogQuery += ` and ORDER BY ${orderBy}`;
     }
     
     // Add LIMIT clause
