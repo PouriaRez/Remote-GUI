@@ -2,6 +2,8 @@ import json
 import hashlib
 import os
 import uuid
+import shutil
+import platform
 from datetime import datetime
 from typing import Dict, List, Optional
 import tempfile
@@ -17,6 +19,20 @@ from pathlib import Path
 # Base data directory (configurable via env; default to backend/usr-mgm next to this file)
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "usr-mgm"))
+
+# Platform detection for debugging
+PLATFORM_INFO = {
+    "system": platform.system(),
+    "release": platform.release(),
+    "version": platform.version(),
+    "machine": platform.machine(),
+    "processor": platform.processor()
+}
+
+print(f"Platform info: {PLATFORM_INFO}")
+print(f"Base directory: {BASE_DIR}")
+print(f"Data directory: {DATA_DIR}")
+
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 USERS_FILE = DATA_DIR / "users.json"
@@ -40,25 +56,56 @@ def _read_json(path: Path) -> Dict:
         print(f"Error loading {path}: {e}")
     return _DEFAULTS.get(path, {})
 
+def _write_json_simple(path: Path, data: Dict):
+    """Simple non-atomic file writing as fallback"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Writing directly to: {path}")
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"File written successfully: {path}")
+    except Exception as e:
+        print(f"Error in simple write {path}: {e}")
+        raise
+
 def _write_json_atomic(path: Path, data: Dict):
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Atomic file writing with fallback to simple write"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Creating directory: {path.parent}")
+    except Exception as e:
+        print(f"Error creating directory {path.parent}: {e}")
+        raise
+    
     tmp = None
     try:
+        print(f"Writing to temporary file in: {path.parent}")
         with tempfile.NamedTemporaryFile("w", dir=str(path.parent), delete=False) as t:
             json.dump(data, t, indent=2)
             t.flush()
             os.fsync(t.fileno())
             tmp = t.name
-        os.replace(tmp, path)  # atomic on POSIX
+            print(f"Temporary file created: {tmp}")
+        
+        # Use shutil.move instead of os.replace for better cross-platform compatibility
+        print(f"Moving {tmp} to {path}")
+        shutil.move(tmp, path)
+        print(f"File successfully written to: {path}")
     except Exception as e:
-        print(f"Error saving {path}: {e}")
-        raise
+        print(f"Atomic write failed, trying simple write: {e}")
+        # Fallback to simple write if atomic fails
+        try:
+            _write_json_simple(path, data)
+        except Exception as simple_error:
+            print(f"Simple write also failed: {simple_error}")
+            raise simple_error
     finally:
         if tmp and os.path.exists(tmp):
             try:
                 os.remove(tmp)
-            except Exception:
-                pass
+                print(f"Cleaned up temporary file: {tmp}")
+            except Exception as e:
+                print(f"Error cleaning up temporary file {tmp}: {e}")
 
 # keep your existing functions, but switch to the helpers:
 def load_json_file(filename: str) -> Dict:
@@ -104,35 +151,54 @@ def hash_password(password: str) -> str:
 
 def file_signup(email: str, password: str, firstname: str, lastname: str) -> Dict:
     """Register a new user"""
-    users_data = load_json_file(USERS_FILE)
-    
-    # Check if user already exists
-    for user in users_data.get("users", []):
-        if user.get("email") == email:
-            return {"error": "User already exists"}
-    
-    # Create new user
-    new_user = {
-        "id": str(uuid.uuid4()),
-        "email": email,
-        "password": hash_password(password),
-        "firstname": firstname,
-        "lastname": lastname,
-        "created_at": datetime.now().isoformat()
-    }
-    
-    users_data.setdefault("users", []).append(new_user)
-    save_json_file(USERS_FILE, users_data)
-    
-    return {
-        "user": {
-            "id": new_user["id"],
-            "email": new_user["email"],
-            "firstname": new_user["firstname"],
-            "lastname": new_user["lastname"],
-            "created_at": new_user["created_at"]
+    try:
+        print(f"Starting signup for email: {email}")
+        print(f"Platform: {PLATFORM_INFO}")
+        print(f"Users file path: {USERS_FILE}")
+        print(f"Users file exists: {USERS_FILE.exists()}")
+        
+        users_data = load_json_file(USERS_FILE)
+        print(f"Loaded users data: {len(users_data.get('users', []))} users")
+        
+        # Check if user already exists
+        for user in users_data.get("users", []):
+            if user.get("email") == email:
+                print(f"User already exists: {email}")
+                return {"error": "User already exists"}
+        
+        # Create new user
+        new_user = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "password": hash_password(password),
+            "firstname": firstname,
+            "lastname": lastname,
+            "created_at": datetime.now().isoformat()
         }
-    }
+        
+        print(f"Created new user with ID: {new_user['id']}")
+        users_data.setdefault("users", []).append(new_user)
+        print(f"Total users after adding: {len(users_data['users'])}")
+        
+        print("Saving users data...")
+        save_json_file(USERS_FILE, users_data)
+        print("Users data saved successfully")
+        
+        return {
+            "user": {
+                "id": new_user["id"],
+                "email": new_user["email"],
+                "firstname": new_user["firstname"],
+                "lastname": new_user["lastname"],
+                "created_at": new_user["created_at"]
+            }
+        }
+    except Exception as e:
+        print(f"Error in file_signup: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return {"error": f"Signup failed: {str(e)}"}
 
 def file_login(email: str, password: str) -> Dict:
     """Authenticate a user"""
