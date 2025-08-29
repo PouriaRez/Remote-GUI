@@ -26,4 +26,4 @@ $VIRTUAL_ENV/bin/uvicorn CLI.local-cli-backend.main:app --host 0.0.0.0 --port 80
 # cd /app/CLI/local-cli-fe-full/build
 # python3 -m http.server 3001
 
-serve -s "${BUILD_DIR}" -l 3001
+serve -s "${BUILD_DIR}" -l 3001  --no-clipboard
