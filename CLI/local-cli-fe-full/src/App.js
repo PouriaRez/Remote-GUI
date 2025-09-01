@@ -8,12 +8,12 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Protected Dashboard Route - no authentication required */}
+        {/* Protected Dashboard Route */}
         <Route
           path="/dashboard/*"
           element={<Dashboard />}
         />
-        {/* Default Route - go directly to client dashboard */}
+        {/* Default Route */}
         <Route path="*" element={<Navigate to="/dashboard/client" />} />
       </Routes>
     </Router>
