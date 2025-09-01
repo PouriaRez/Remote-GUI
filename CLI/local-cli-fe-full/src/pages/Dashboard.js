@@ -6,7 +6,6 @@ import Client from './Client';
 import Monitor from './Monitor';
 import Policies from './Policies';
 import AddData from './AddData';
-import UserProfile from './UserProfile';
 import ViewFiles from './ViewFiles';
 import Presets from './Presets';
 import SqlQueryGenerator from './SqlQueryGenerator';
@@ -48,7 +47,6 @@ const Dashboard = () => {
             <Route path="monitor" element={<Monitor node = {selectedNode}/>} />
             <Route path="policies" element={<Policies node = {selectedNode}/>} />
             <Route path="adddata" element={<AddData node = {selectedNode}/>} />
-            <Route path="userprofile" element={<UserProfile node = {selectedNode}/>} />
             <Route path="viewfiles" element={<ViewFiles node = {selectedNode}/>} />
             <Route path="presets" element={<Presets node = {selectedNode} />} />
             <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />

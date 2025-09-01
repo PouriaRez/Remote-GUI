@@ -1,183 +1,35 @@
-// File-based authentication service
-// Replaces the old JWT-based authentication system
+// File-based service for managing bookmarks, presets, and other file operations
+// No user authentication required
 
 const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
 
-// Helper function to get user ID from localStorage
-const getUserId = () => {
-    const userId = localStorage.getItem('userId');
-    console.log("User ID: ", userId);
-    if (!userId) {
-        throw new Error('User not authenticated');
-    }
-    return userId;
-};
-
-// Authentication functions
-export async function signup({ email, password, firstName, lastName }) {
-    if (!email || !password || !firstName || !lastName) {
-        throw new Error('Missing required fields');
-    }
-
-    try {
-        const requestBody = { 
-            email: email, 
-            password: password, 
-            firstname: firstName, 
-            lastname: lastName 
-        };
-
-        const response = await fetch(`${API_URL}/auth/signup/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.data && data.data.user) {
-            localStorage.setItem('userId', data.data.user.id);
-            localStorage.setItem('userEmail', data.data.user.email);
-            localStorage.setItem('userFirstName', data.data.user.firstname);
-            localStorage.setItem('userLastName', data.data.user.lastname);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Error signing up:', error);
-        throw error;
-    }
-}
-
-export async function login({ email, password }) {
-    if (!email || !password) {
-        throw new Error('Missing required fields');
-    }
-
-    try {
-        const requestBody = { email: email, password: password };
-
-        const response = await fetch(`${API_URL}/auth/login/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.data && data.data.user) {
-            localStorage.setItem('userId', data.data.user.id);
-            localStorage.setItem('userEmail', data.data.user.email);
-            localStorage.setItem('userFirstName', data.data.user.firstname);
-            localStorage.setItem('userLastName', data.data.user.lastname);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Error logging in:', error);
-        throw error;
-    }
-}
-
-export async function logout() {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userFirstName');
-    localStorage.removeItem('userLastName');
-
-    try {
-        const response = await fetch(`${API_URL}/auth/logout/`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error logging out:', error);
-        throw error;
-    }
-}
-
-export async function getUser() {
-    try {
-        const userId = getUserId();
-
-        const requestBody = { jwt: userId };
-        const response = await fetch(`${API_URL}/auth/get-user/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error getting user:', error);
-        throw error;
-    }
-}
-
+// Authentication functions removed - no user concept
 export function isLoggedIn() {
-    const userId = localStorage.getItem('userId');
-    return !!userId;
+    // Always return true since no authentication is required
+    return true;
 }
 
 // Bookmark functions
 export async function bookmarkNode({ node }) {
     if (!node) {
-        throw new Error('Missing node parameter');
+        throw new Error('Node is required');
     }
-    console.log("Bookmarking node: ", node);
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            conn:{conn: node}
-        };
-
-        const response = await fetch(`${API_URL}/auth/bookmark-node/`, {
+        const response = await fetch(`${API_URL}/bookmarks/add/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({ node }),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error bookmarking node:', error);
         throw error;
@@ -186,57 +38,45 @@ export async function bookmarkNode({ node }) {
 
 export async function getBookmarks() {
     try {
-        const userId = getUserId();
-
-        const requestBody = { jwt: userId };
-
-        const response = await fetch(`${API_URL}/auth/get-bookmarked-nodes/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/bookmarks/`, {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
-        console.error('Error getting bookmarks:', error);
+        console.error('Error fetching bookmarks:', error);
         throw error;
     }
 }
 
 export async function deleteBookmarkedNode({ node }) {
     if (!node) {
-        throw new Error('Missing node parameter');
+        throw new Error('Node is required');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            conn:{conn: node}
-        };
-
-        const response = await fetch(`${API_URL}/auth/delete-bookmarked-node/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/bookmarks/delete/`, {
+            method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({ node }),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error deleting bookmarked node:', error);
         throw error;
@@ -244,33 +84,25 @@ export async function deleteBookmarkedNode({ node }) {
 }
 
 export async function updateBookmarkDescription({ node, description }) {
-    if (!node || !description) {
-        throw new Error('Missing node or description parameter');
+    if (!node) {
+        throw new Error('Node is required');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            node: node,
-            description: description
-        };
-
-        const response = await fetch(`${API_URL}/auth/update-bookmark-description/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/bookmarks/update/`, {
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({ node, description }),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error updating bookmark description:', error);
         throw error;
@@ -279,32 +111,25 @@ export async function updateBookmarkDescription({ node, description }) {
 
 // Preset group functions
 export async function addPresetGroup({ name }) {
-    if (!name) {
-        throw new Error('Missing group name');
+    if (!name || !name.trim()) {
+        throw new Error('Group name is required');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            group: { group_name: name }
-        };
-
-        const response = await fetch(`${API_URL}/auth/add-preset-group/`, {
+        const response = await fetch(`${API_URL}/preset-groups/add/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({ name: name.trim() }),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error adding preset group:', error);
         throw error;
@@ -313,63 +138,45 @@ export async function addPresetGroup({ name }) {
 
 export async function getPresetGroups() {
     try {
-        const userId = getUserId();
-
-        const requestBody = { jwt: userId };
-
-        const response = await fetch(`${API_URL}/auth/get-preset-groups/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/preset-groups/`, {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
-        console.error('Error getting preset groups:', error);
+        console.error('Error fetching preset groups:', error);
         throw error;
     }
 }
 
 export async function deletePresetGroup({ groupId, groupName }) {
-    if (!groupId || !groupName) {
-        throw new Error('Missing group ID or group name');
+    if (!groupId) {
+        throw new Error('Group ID is required');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {jwt: userId},
-            group_id: {group_id: groupId},
-            group: {group_name: groupName}
-        };
-
-        console.log("Delete group request body:", requestBody);
-
-        const response = await fetch(`${API_URL}/auth/delete-preset-group/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/preset-groups/delete/`, {
+            method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({ groupId, groupName }),
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Delete group response error:", response.status, errorText);
-            throw new Error(`Server responded with status ${response.status}: ${errorText}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        console.log("Delete group response:", data);
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error deleting preset group:', error);
         throw error;
@@ -378,34 +185,25 @@ export async function deletePresetGroup({ groupId, groupName }) {
 
 // Preset functions
 export async function addPreset({ preset }) {
-    if (!preset || !preset.command || !preset.type || !preset.button || !preset.group_id) {
-        throw new Error('Missing required preset fields');
+    if (!preset || !preset.command || !preset.type || !preset.button || !preset.groupName) {
+        throw new Error('Preset must have command, type, button, and groupName');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {jwt: userId}, 
-            preset: preset
-        };
-
-        console.log("Request body: ", requestBody);
-
-        const response = await fetch(`${API_URL}/auth/add-preset/`, {
+        const response = await fetch(`${API_URL}/presets/add/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify(preset),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error adding preset:', error);
         throw error;
@@ -414,76 +212,49 @@ export async function addPreset({ preset }) {
 
 export async function getPresetsByGroup({ groupId }) {
     if (!groupId) {
-        throw new Error('Missing group ID');
+        throw new Error('Group ID is required');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {
-              jwt: userId
-            },
-            group_id: {
-              group_id: groupId
-            }
-          };
-
-        console.log("Request body: ", requestBody);
-
-        const response = await fetch(`${API_URL}/auth/get-presets/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/presets/by-group/${groupId}`, {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
-        console.error('Error getting presets by group:', error);
+        console.error('Error fetching presets by group:', error);
         throw error;
     }
 }
 
 export async function deletePreset({ presetId }) {
     if (!presetId) {
-        throw new Error('Missing preset ID');
+        throw new Error('Preset ID is required');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {
-                jwt: userId
-            },
-            preset_id: {
-                preset_id: presetId
-            }
-        };
-
-        console.log("Delete preset request body: ", requestBody);
-
-        const response = await fetch(`${API_URL}/auth/delete-preset/`, {
-            method: 'POST',
+        const response = await fetch(`${API_URL}/presets/delete/`, {
+            method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({ presetId }),
         });
 
         if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        return await response.json();
     } catch (error) {
         console.error('Error deleting preset:', error);
         throw error;
@@ -492,17 +263,16 @@ export async function deletePreset({ presetId }) {
 
 // Utility functions
 export function getCurrentUser() {
+    // Return a default user object since no authentication is required
     return {
-        id: localStorage.getItem('userId'),
-        email: localStorage.getItem('userEmail'),
-        firstName: localStorage.getItem('userFirstName'),
-        lastName: localStorage.getItem('userLastName')
+        id: 'default',
+        email: 'default@example.com',
+        firstname: 'Default',
+        lastname: 'User'
     };
 }
 
 export function clearUserData() {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userFirstName');
-    localStorage.removeItem('userLastName');
+    // No user data to clear
+    console.log('No user data to clear');
 } 
