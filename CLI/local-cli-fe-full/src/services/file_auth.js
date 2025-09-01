@@ -1,155 +1,84 @@
-// File-based authentication service
-// Replaces the old JWT-based authentication system
+// File-based service (no authentication required)
+// Simplified version that works without user authentication
 
 const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
 
-// Helper function to get user ID from localStorage
-const getUserId = () => {
-    const userId = localStorage.getItem('userId');
-    console.log("User ID: ", userId);
-    if (!userId) {
-        throw new Error('User not authenticated');
-    }
-    return userId;
-};
+// Default user ID for all operations
+const DEFAULT_USER_ID = "default-user-12345";
 
-// Authentication functions
+// Set default user ID in localStorage on first load
+if (!localStorage.getItem('userId')) {
+    localStorage.setItem('userId', DEFAULT_USER_ID);
+}
+
+// Authentication functions (simplified)
 export async function signup({ email, password, firstName, lastName }) {
-    if (!email || !password || !firstName || !lastName) {
-        throw new Error('Missing required fields');
-    }
-
-    try {
-        const requestBody = { 
-            email: email, 
-            password: password, 
-            firstname: firstName, 
-            lastname: lastName 
-        };
-
-        const response = await fetch(`${API_URL}/auth/signup/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.data && data.data.user) {
-            localStorage.setItem('userId', data.data.user.id);
-            localStorage.setItem('userEmail', data.data.user.email);
-            localStorage.setItem('userFirstName', data.data.user.firstname);
-            localStorage.setItem('userLastName', data.data.user.lastname);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Error signing up:', error);
-        throw error;
-    }
+    // Always return success with default user
+    const defaultUser = {
+        id: DEFAULT_USER_ID,
+        email: email || "default@example.com",
+        firstname: firstName || "Default",
+        lastname: lastName || "User",
+        created_at: new Date().toISOString()
+    };
+    
+    localStorage.setItem('userId', DEFAULT_USER_ID);
+    localStorage.setItem('userEmail', defaultUser.email);
+    localStorage.setItem('userFirstName', defaultUser.firstname);
+    localStorage.setItem('userLastName', defaultUser.lastname);
+    
+    return { data: { user: defaultUser } };
 }
 
 export async function login({ email, password }) {
-    if (!email || !password) {
-        throw new Error('Missing required fields');
-    }
-
-    try {
-        const requestBody = { email: email, password: password };
-
-        const response = await fetch(`${API_URL}/auth/login/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.data && data.data.user) {
-            localStorage.setItem('userId', data.data.user.id);
-            localStorage.setItem('userEmail', data.data.user.email);
-            localStorage.setItem('userFirstName', data.data.user.firstname);
-            localStorage.setItem('userLastName', data.data.user.lastname);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('Error logging in:', error);
-        throw error;
-    }
+    // Always return success with default user
+    const defaultUser = {
+        id: DEFAULT_USER_ID,
+        email: email || "default@example.com",
+        firstname: "Default",
+        lastname: "User",
+        created_at: new Date().toISOString()
+    };
+    
+    localStorage.setItem('userId', DEFAULT_USER_ID);
+    localStorage.setItem('userEmail', defaultUser.email);
+    localStorage.setItem('userFirstName', defaultUser.firstname);
+    localStorage.setItem('userLastName', defaultUser.lastname);
+    
+    return { data: { user: defaultUser } };
 }
 
 export async function logout() {
-    localStorage.removeItem('userId');
+    // Clear localStorage but keep default user ID
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userFirstName');
     localStorage.removeItem('userLastName');
-
-    try {
-        const response = await fetch(`${API_URL}/auth/logout/`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error logging out:', error);
-        throw error;
-    }
+    
+    // Keep the default user ID
+    localStorage.setItem('userId', DEFAULT_USER_ID);
+    
+    return { data: { message: "Logged out successfully" } };
 }
 
 export async function getUser() {
-    try {
-        const userId = getUserId();
-
-        const requestBody = { jwt: userId };
-        const response = await fetch(`${API_URL}/auth/get-user/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server responded with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error getting user:', error);
-        throw error;
-    }
+    // Always return default user
+    const defaultUser = {
+        id: DEFAULT_USER_ID,
+        email: localStorage.getItem('userEmail') || "default@example.com",
+        firstname: localStorage.getItem('userFirstName') || "Default",
+        lastname: localStorage.getItem('userLastName') || "User",
+        created_at: new Date().toISOString()
+    };
+    
+    return { data: defaultUser };
 }
 
 export function isLoggedIn() {
-    const userId = localStorage.getItem('userId');
-    return !!userId;
+    // Always return true - no authentication needed
+    return true;
 }
 
-// Bookmark functions
+// Bookmark functions (simplified - no authentication required)
 export async function bookmarkNode({ node }) {
     if (!node) {
         throw new Error('Missing node parameter');
@@ -157,12 +86,7 @@ export async function bookmarkNode({ node }) {
     console.log("Bookmarking node: ", node);
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            conn:{conn: node}
-        };
+        const requestBody = { conn: { conn: node } };
 
         const response = await fetch(`${API_URL}/auth/bookmark-node/`, {
             method: 'POST',
@@ -186,16 +110,11 @@ export async function bookmarkNode({ node }) {
 
 export async function getBookmarks() {
     try {
-        const userId = getUserId();
-
-        const requestBody = { jwt: userId };
-
         const response = await fetch(`${API_URL}/auth/get-bookmarked-nodes/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -216,12 +135,7 @@ export async function deleteBookmarkedNode({ node }) {
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            conn:{conn: node}
-        };
+        const requestBody = { conn: { conn: node } };
 
         const response = await fetch(`${API_URL}/auth/delete-bookmarked-node/`, {
             method: 'POST',
@@ -249,10 +163,7 @@ export async function updateBookmarkDescription({ node, description }) {
     }
 
     try {
-        const userId = getUserId();
-
         const requestBody = {
-            token:{jwt: userId},
             node: node,
             description: description
         };
@@ -277,19 +188,14 @@ export async function updateBookmarkDescription({ node, description }) {
     }
 }
 
-// Preset group functions
+// Preset group functions (simplified - no authentication required)
 export async function addPresetGroup({ name }) {
     if (!name) {
         throw new Error('Missing group name');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token:{jwt: userId},
-            group: { group_name: name }
-        };
+        const requestBody = { group_name: name };
 
         const response = await fetch(`${API_URL}/auth/add-preset-group/`, {
             method: 'POST',
@@ -313,16 +219,11 @@ export async function addPresetGroup({ name }) {
 
 export async function getPresetGroups() {
     try {
-        const userId = getUserId();
-
-        const requestBody = { jwt: userId };
-
         const response = await fetch(`${API_URL}/auth/get-preset-groups/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -343,12 +244,9 @@ export async function deletePresetGroup({ groupId, groupName }) {
     }
 
     try {
-        const userId = getUserId();
-
         const requestBody = {
-            token: {jwt: userId},
-            group_id: {group_id: groupId},
-            group: {group_name: groupName}
+            group_id: groupId,
+            group_name: groupName
         };
 
         console.log("Delete group request body:", requestBody);
@@ -376,19 +274,14 @@ export async function deletePresetGroup({ groupId, groupName }) {
     }
 }
 
-// Preset functions
+// Preset functions (simplified - no authentication required)
 export async function addPreset({ preset }) {
     if (!preset || !preset.command || !preset.type || !preset.button || !preset.group_id) {
         throw new Error('Missing required preset fields');
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {jwt: userId}, 
-            preset: preset
-        };
+        const requestBody = preset;
 
         console.log("Request body: ", requestBody);
 
@@ -418,16 +311,7 @@ export async function getPresetsByGroup({ groupId }) {
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {
-              jwt: userId
-            },
-            group_id: {
-              group_id: groupId
-            }
-          };
+        const requestBody = { group_id: groupId };
 
         console.log("Request body: ", requestBody);
 
@@ -457,16 +341,7 @@ export async function deletePreset({ presetId }) {
     }
 
     try {
-        const userId = getUserId();
-
-        const requestBody = {
-            token: {
-                jwt: userId
-            },
-            preset_id: {
-                preset_id: presetId
-            }
-        };
+        const requestBody = { preset_id: presetId };
 
         console.log("Delete preset request body: ", requestBody);
 
@@ -493,16 +368,17 @@ export async function deletePreset({ presetId }) {
 // Utility functions
 export function getCurrentUser() {
     return {
-        id: localStorage.getItem('userId'),
-        email: localStorage.getItem('userEmail'),
-        firstName: localStorage.getItem('userFirstName'),
-        lastName: localStorage.getItem('userLastName')
+        id: localStorage.getItem('userId') || DEFAULT_USER_ID,
+        email: localStorage.getItem('userEmail') || "default@example.com",
+        firstName: localStorage.getItem('userFirstName') || "Default",
+        lastName: localStorage.getItem('userLastName') || "User"
     };
 }
 
 export function clearUserData() {
-    localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userFirstName');
     localStorage.removeItem('userLastName');
+    // Keep the default user ID
+    localStorage.setItem('userId', DEFAULT_USER_ID);
 } 

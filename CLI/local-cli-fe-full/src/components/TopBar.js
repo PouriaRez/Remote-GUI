@@ -20,9 +20,9 @@ const TopBar = ({ nodes, selectedNode, onAddNode, onSelectNode }) => {
       </div>
       <div className="topbar-right">
         {/* <button className="profile-btn">User Profile</button> */}
-        <nav className="profile-btn">
+        {/* <nav className="profile-btn">
               <NavLink to="userprofile" className={({ isActive }) => isActive ? 'active' : ''}>User Profile</NavLink>
-        </nav>
+        </nav> */}
       </div>
     </header>
   );
