@@ -37,6 +37,8 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Include routers
+
+
 app.include_router(sql_router)
 app.include_router(file_auth_router)
 # 23.239.12.151:32349
@@ -159,7 +161,7 @@ def view_blobs(conn: Connection, blobs: dict):
         file_list.append(operator_file)
 
         # blobs_dir = "/app/Remote-CLI/djangoProject/static/blobs/current/"
-        blobs_dir = "/app/CLI/Local-CLI/local-cli-backend/static/"
+        blobs_dir = "/app/CLI/local-cli-backend/static/"
         print("IP:Port", ip_port)
 
         # cmd = f'run client ({ip_port}) file get !!blockchain_file !blockchain_file'

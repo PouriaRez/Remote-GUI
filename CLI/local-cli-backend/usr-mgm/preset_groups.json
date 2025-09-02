@@ -1,3 +1,16 @@
 {
-  "preset_groups": []
+  "preset_groups": [
+    {
+      "id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "user_id": "default-user-12345",
+      "group_name": "sql",
+      "created_at": "2025-09-02T09:56:44.745911"
+    },
+    {
+      "id": "f1bda500-0f96-4b3d-ae95-92dce3f71129",
+      "user_id": "default-user-12345",
+      "group_name": "blobs",
+      "created_at": "2025-09-02T12:01:47.579176"
+    }
+  ]
 }
