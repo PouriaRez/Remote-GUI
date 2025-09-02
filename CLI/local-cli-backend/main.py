@@ -162,10 +162,10 @@ def view_blobs(conn: Connection, blobs: dict):
 
         # blobs_dir = "/app/Remote-CLI/djangoProject/static/blobs/current/"
         blobs_dir = "/app/CLI/local-cli-backend/static/"
-        if not os.path.exists(blobs_dir): 
-            print("Blobs directory does not exist")
-            root = __file__.split("CLI")[0] 
-            blobs_dir = blobs_dir.replace('/app', root) 
+        # if not os.path.exists(blobs_dir): 
+        #     print("Blobs directory does not exist")
+        #     root = __file__.split("CLI")[0] 
+        #     blobs_dir = blobs_dir.replace('/app', root) 
         print("IP:Port", ip_port)
 
         print("blobs_dir", blobs_dir)
