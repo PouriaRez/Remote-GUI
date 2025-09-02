@@ -162,13 +162,27 @@ def view_blobs(conn: Connection, blobs: dict):
 
         # blobs_dir = "/app/Remote-CLI/djangoProject/static/blobs/current/"
         blobs_dir = "/app/CLI/local-cli-backend/static/"
+        if not os.path.exists(blobs_dir): 
+            print("Blobs directory does not exist")
+            root = __file__.split("CLI")[0] 
+            blobs_dir = blobs_dir.replace('/app', root) 
         print("IP:Port", ip_port)
+
+        print("blobs_dir", blobs_dir)
+
 
         # cmd = f'run client ({ip_port}) file get !!blockchain_file !blockchain_file'
         # cmd = f'run client ({ip_port}) file get !!blobs_dir/{operator_file} !blobs_dir/{operator_file}'
 
         cmd = f"run client ({ip_port}) file get (dbms = blobs_{operator_dbms} and table = {operator_table} and id = {operator_file}) {blobs_dir}{operator_dbms}.{operator_table}.{operator_file}"  # Add file full path and name for the destination on THIS MACHINE
         raw_response = make_request(conn.conn, "POST", cmd)
+
+        try:
+            files_in_dir = os.listdir(blobs_dir)
+            print("Files in blobs_dir:", files_in_dir)
+        except Exception as e:
+            print(f"Error listing files in {blobs_dir}: {e}")
+            files_in_dir = []
 
         print("raw_response", raw_response)
 
