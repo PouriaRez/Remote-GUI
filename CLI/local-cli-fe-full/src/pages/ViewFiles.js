@@ -25,13 +25,14 @@ const ViewFiles = () => {
 
   // List of your filenames in public/static/
   const dummyFiles = [
-    'edgex.factory_imgs.0e5646150cddf0549be1e165bf878090.jpeg',
-    '277d090b5cdbd0a539315e48708e6168.jpeg',
-    'anylogLogo.png',
+    // 'edgex.factory_imgs.0e5646150cddf0549be1e165bf878090.jpeg',
+    // '277d090b5cdbd0a539315e48708e6168.jpeg',
+    // 'anylogLogo.png',
     // 'report.pdf',
     'flower.jpg',
-    'example.wav',
-    'video.mp4',
+
+    // 'example.wav',
+    // 'video.mp4',
     // …add as many as you like
   ];
 
@@ -41,7 +42,9 @@ const ViewFiles = () => {
     <>
       <div className="view-files-grid">
         {finalFiles.map((name, idx) => {
+          // const url = `${BACKEND_URL}/static/${name}`;
           const url = `${BACKEND_URL}/static/${name}`;
+          console.log("url", url);
           return (
             <div
               key={idx}

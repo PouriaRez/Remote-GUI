@@ -1,7 +1,7 @@
 
 
 import React, { useState, useRef, useEffect } from 'react';
-import DataTable from '../components/DataTable';
+import MonitorTable from '../components/MonitorTable';
 import { monitor } from '../services/api'; // Ensure your API is set up correctly
 import '../styles/Monitor.css';
 
@@ -66,6 +66,25 @@ const Monitor = ({ node }) => {
     };
   }, []);
 
+  // Auto-dismiss error messages after 5 seconds
+  useEffect(() => {
+    if (inputError) {
+      const timer = setTimeout(() => {
+        setInputError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [inputError]);
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   // Handle changes to the rerun rate input.
   const handleRerunRateChange = (e) => {
     const newRate = parseInt(e.target.value, 10);
@@ -118,7 +137,7 @@ const Monitor = ({ node }) => {
         </button>
       </div>
       {error && <p style={{ color: 'red' }}>{error}</p>}
-      {data && data.length > 0 && <DataTable data={data} />}
+      {data && data.length > 0 && <MonitorTable data={data} />}
     </div>
   );
 };
