@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getUser, logout } from '../services/file_auth';
+import { getUser } from '../services/file_auth';
 import { getBookmarks, deleteBookmarkedNode, updateBookmarkDescription } from '../services/file_auth';
 import BookmarkTable from '../components/BookmarkTable';
 
 // import '../styles/UserProfile.css';
 
 const UserProfile = ({ onBookmarkRefresh }) => {
-    const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -34,7 +32,6 @@ const UserProfile = ({ onBookmarkRefresh }) => {
             setLoadingBookmarks(false);
         }
     };
-
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -71,19 +68,6 @@ const UserProfile = ({ onBookmarkRefresh }) => {
         };
     }, []);
 
-
-    const handleLogout = async () => {
-        try {
-            await logout();
-            // Redirect to login page after successful logout
-            navigate('/login');
-        } catch (err) {
-            console.error('Logout failed:', err);
-            alert('Could not log out. Please try again.');
-        }
-    };
-
-
     if (loading) {
         return <div className="userprofile-container">Loading...</div>;
     }
@@ -93,12 +77,10 @@ const UserProfile = ({ onBookmarkRefresh }) => {
         return (
             <div className="userprofile-container">
                 <div className="userprofile-container error">{error}</div>
-                <button onClick={handleLogout} className="logout-button">
-                    Logout
-                </button>
             </div>
         );
     }
+
     const handleDeleteBookmark = async (node) => {
         try {
             await deleteBookmarkedNode({ node });
@@ -108,6 +90,7 @@ const UserProfile = ({ onBookmarkRefresh }) => {
             alert('Failed to delete bookmark');
         }
     };
+
     const handleUpdateDescription = async (node, description) => {
         try {
           await updateBookmarkDescription({ node, description });
@@ -119,34 +102,12 @@ const UserProfile = ({ onBookmarkRefresh }) => {
           alert('Error updating description');
         }
     };
-    
-    
 
     return (
         <div className="userprofile-container">
             <div className="profile-card">
-                {/* <img
-                    src={user.avatarUrl || '/assets/default-avatar.png'}
-                    alt="Profile"
-                    className="profile-avatar"
-                /> */}
                 <h1 className="profile-name">{user.firstname} {user.lastname}</h1>
                 <p className="profile-email">{user.email}</p>
-                {/* Add more fields as needed */}
-                {/* Logout button */}
-                <button
-                    onClick={handleLogout}
-                    className="logout-button"
-                    style={{
-                        marginTop: '1rem',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '0.25rem',
-                        border: 'none',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Logout
-                </button>
             </div>
             <div className="bookmarks-section" style={{ marginTop: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -177,8 +138,6 @@ const UserProfile = ({ onBookmarkRefresh }) => {
                         data={bookmarks}
                         onDelete={handleDeleteBookmark}
                         onUpdateDescription={handleUpdateDescription}/>
-
-
                 )}
             </div>
         </div>

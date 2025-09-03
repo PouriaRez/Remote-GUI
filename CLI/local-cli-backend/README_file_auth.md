@@ -176,7 +176,7 @@ const requestBody = {
 Run the test script to verify the router works:
 
 ```bash
-cd CLI/local-cli-backend
+cd CLI/Local-CLI/local-cli-backend
 python test_router.py
 ```
 

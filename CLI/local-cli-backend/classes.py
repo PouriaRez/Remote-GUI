@@ -15,25 +15,11 @@ class Command(BaseModel):
     type: str # "GET" or "POST"
     cmd: str
 
-class UserSignupInfo(BaseModel):
-    email: str
-    password: str
-    firstname: str
-    lastname: str
-
-class UserLoginInfo(BaseModel):
-    email: str
-    password: str
-
-class AccessToken(BaseModel):
-    jwt: str
-
 class Policy(BaseModel):
     name: str  # Policy name
     data: Dict[str, str]  # Key-value pairs
 
 class BookmarkUpdateRequest(BaseModel):
-    token: AccessToken
     node: str
     description: str
 

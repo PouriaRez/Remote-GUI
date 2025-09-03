@@ -200,7 +200,8 @@ const Client = ({ node }) => {
             <strong>Connected Node:</strong> {node}
           </p>
 
-      <button
+      {/* Hiding Presets for now */}
+      {/* <button
         type="button"
         className="toggle-presets-button"
         onClick={() => {
@@ -209,7 +210,7 @@ const Client = ({ node }) => {
         }}
       >
         {showPresets ? 'Hide Presets' : 'Show Presets'}
-      </button>
+      </button> */}
 
       {/* PRESETS PANEL */}
       {showPresets && presetGroups.length > 0 && (

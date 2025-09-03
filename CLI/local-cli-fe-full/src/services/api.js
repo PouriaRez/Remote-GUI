@@ -257,6 +257,8 @@ export async function viewBlobs({ connectInfo, blobs }) {
       conn: { conn: connectInfo },
     };
 
+    console.log("API_URL", API_URL);
+
     const response = await fetch(`${API_URL}/view-blobs`, {
       method: 'POST',
       headers: {
