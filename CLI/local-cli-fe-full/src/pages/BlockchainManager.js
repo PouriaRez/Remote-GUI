@@ -87,21 +87,46 @@ const BlockchainManager = ({ node }) => {
           }
         }
 
-        // Extract operator data if it exists in the response
+        // Handle different response structures more flexibly
         const extractedResults = [];
         parsedResults.forEach(item => {
-          if (item.operator) {
-            extractedResults.push(item.operator);
-          } else if (item.query) {
-            extractedResults.push(item.query);
-          } else if (item.master) {
-            extractedResults.push(item.master);
-          } else if (item.cluster) {
-            extractedResults.push(item.cluster);
-          } else if (item.table) {
-            extractedResults.push(item.table);
+          // If the item is already a flat object with the data we need, use it directly
+          if (typeof item === 'object' && item !== null) {
+            // Check if this looks like a direct policy object (has common blockchain fields)
+            const hasBlockchainFields = ['id', 'name', 'type', 'status', 'created', 'updated'].some(field => 
+              item.hasOwnProperty(field)
+            );
+            
+            if (hasBlockchainFields) {
+              // This is likely a direct policy object, use it as-is
+              extractedResults.push(item);
+            } else {
+              // This might be a wrapper object, try to extract nested data
+              const nestedKeys = Object.keys(item).filter(key => 
+                typeof item[key] === 'object' && item[key] !== null
+              );
+              
+              if (nestedKeys.length === 1) {
+                // Single nested object, extract it
+                extractedResults.push(item[nestedKeys[0]]);
+              } else if (nestedKeys.length > 1) {
+                // Multiple nested objects, flatten them or use the first one
+                // For now, let's flatten all nested objects into one
+                const flattened = { ...item };
+                nestedKeys.forEach(key => {
+                  if (typeof item[key] === 'object' && item[key] !== null) {
+                    Object.assign(flattened, item[key]);
+                  }
+                });
+                extractedResults.push(flattened);
+              } else {
+                // No nested objects, use the item as-is
+                extractedResults.push(item);
+              }
+            }
           } else {
-            extractedResults.push(item);
+            // Non-object item, wrap it
+            extractedResults.push({ value: item });
           }
         });
 
@@ -218,23 +243,42 @@ const BlockchainManager = ({ node }) => {
       'Basic Information': [],
       'Network & Connection': [],
       'Configuration': [],
+      'Location & Geography': [],
       'Metadata': [],
       'Other': []
     };
 
-    // Categorize fields
+    // Categorize fields with more flexible matching
     Object.entries(item).forEach(([key, value]) => {
       const lowerKey = key.toLowerCase();
       
-      if (['name', 'id', 'title', 'label', 'description', 'company', 'type', 'status', 'category'].includes(lowerKey)) {
+      // Basic Information - common identifiers and descriptions
+      if (['name', 'id', 'title', 'label', 'description', 'company', 'type', 'status', 'category', 'policy', 'rule'].includes(lowerKey) ||
+          lowerKey.includes('name') || lowerKey.includes('title') || lowerKey.includes('description')) {
         fieldGroups['Basic Information'].push([key, value]);
-      } else if (['ip', 'hostname', 'port', 'rest_port', 'broker_port', 'url', 'endpoint', 'address'].includes(lowerKey)) {
+      } 
+      // Network & Connection - network-related fields
+      else if (['ip', 'hostname', 'port', 'rest_port', 'broker_port', 'url', 'endpoint', 'address', 'host', 'server'].includes(lowerKey) ||
+               lowerKey.includes('port') || lowerKey.includes('host') || lowerKey.includes('ip') || lowerKey.includes('url')) {
         fieldGroups['Network & Connection'].push([key, value]);
-      } else if (['config', 'settings', 'options', 'parameters', 'properties'].includes(lowerKey) || lowerKey.includes('config')) {
+      } 
+      // Configuration - settings and config fields
+      else if (['config', 'settings', 'options', 'parameters', 'properties', 'value', 'data', 'content'].includes(lowerKey) ||
+               lowerKey.includes('config') || lowerKey.includes('setting') || lowerKey.includes('param')) {
         fieldGroups['Configuration'].push([key, value]);
-      } else if (['date', 'created', 'updated', 'timestamp', 'cluster', 'ledger', 'member'].includes(lowerKey) || lowerKey.includes('id')) {
+      } 
+      // Metadata - timestamps, IDs, and blockchain-specific fields
+      else if (['date', 'created', 'updated', 'timestamp', 'cluster', 'ledger', 'member', 'hash', 'block', 'transaction'].includes(lowerKey) ||
+               lowerKey.includes('id') || lowerKey.includes('time') || lowerKey.includes('date') || lowerKey.includes('hash')) {
         fieldGroups['Metadata'].push([key, value]);
-      } else {
+      } 
+      // Location & Geography - location-related fields
+      else if (['location', 'country', 'state', 'city', 'region', 'zone', 'area', 'coordinates', 'lat', 'lng', 'loc'].includes(lowerKey) ||
+               lowerKey.includes('location') || lowerKey.includes('country') || lowerKey.includes('city')) {
+        fieldGroups['Location & Geography'].push([key, value]);
+      }
+      // Other - everything else
+      else {
         fieldGroups['Other'].push([key, value]);
       }
     });
