@@ -11,6 +11,7 @@ import ViewFiles from './ViewFiles';
 import Presets from './Presets';
 import Bookmarks from './Bookmarks';
 import SqlQueryGenerator from './SqlQueryGenerator';
+import BlockchainManager from './BlockchainManager';
 // import Presets from './Presets';
 import '../styles/Dashboard.css'; // dashboard-specific styles
 
@@ -54,6 +55,7 @@ const Dashboard = () => {
             <Route path="presets" element={<Presets node = {selectedNode} />} />
             <Route path="bookmarks" element={<Bookmarks node = {selectedNode} />} />
             <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />
+            <Route path="blockchain" element={<BlockchainManager node = {selectedNode} />} />
             {/* Default view */}
             <Route path="*" element={<Client node = {selectedNode}/>} />
           </Routes>

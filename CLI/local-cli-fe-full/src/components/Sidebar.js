@@ -12,6 +12,7 @@ const Sidebar = () => {
       <NavLink to="adddata" className={({ isActive }) => isActive ? 'active' : ''}>Add Data</NavLink>
       <NavLink to="viewfiles" className={({ isActive }) => isActive ? 'active' : ''}>View Files</NavLink>
       <NavLink to="sqlquery" className={({ isActive }) => isActive ? 'active' : ''}>SQL Query</NavLink>
+      <NavLink to="blockchain" className={({ isActive }) => isActive ? 'active' : ''}>Blockchain Manager</NavLink>
       <NavLink to="presets" className={({ isActive }) => isActive ? 'active' : ''}>Presets</NavLink>
       <NavLink to="bookmarks" className={({ isActive }) => isActive ? 'active' : ''}>Bookmarks</NavLink>
     </nav>
