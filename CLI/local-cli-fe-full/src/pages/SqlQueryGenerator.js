@@ -381,9 +381,9 @@ const SqlQueryGenerator = ({ node }) => {
         const direction = col.direction || 'ASC';
         return `${col.column} ${direction}`;
       }).join(', ');
-      anylogQuery += ` and ORDER BY ${orderByClause}`;
+      anylogQuery += ` ORDER BY ${orderByClause}`;
     } else if (orderBy.trim()) {
-      anylogQuery += ` and ORDER BY ${orderBy}`;
+      anylogQuery += ` ORDER BY ${orderBy}`;
     }
     
     // Add LIMIT clause
