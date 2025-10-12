@@ -15,6 +15,14 @@
       },
       "description": "this machines node",
       "created_at": "2025-09-10T12:05:09.070311"
+    },
+    {
+      "id": "60ab43b9-5af5-409c-a545-288eba655411",
+      "node": {
+        "conn": "192.168.86.22:32149"
+      },
+      "description": "",
+      "created_at": "2025-10-12T15:52:36.882081"
     }
   ]
 }

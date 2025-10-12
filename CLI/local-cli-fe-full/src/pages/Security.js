@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PolicySelector from '../components/security/PolicySelector';
 import DynamicPolicyForm from '../components/security/DynamicPolicyForm';
+import SignWithSelector from '../components/security/SignWithSelector';
 import { getPolicyTemplate, submitPolicy } from '../services/security_api';
 import '../styles/security/PolicyGeneratorPage.css';
 
@@ -20,6 +21,8 @@ function PolicyGeneratorPage({ node }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // State to trigger refresh of dynamic data
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // State for signing member selection
+  const [signingMember, setSigningMember] = useState('');
 
   // Fetch the policy template whenever the policy type changes
   useEffect(() => {
@@ -53,15 +56,24 @@ function PolicyGeneratorPage({ node }) {
       return;
     }
 
+    // Check if signing member is selected (only if template requires signature and is not a member policy)
+    if (formTemplate.requires_signature && policyType !== "member_policy" && !signingMember) {
+      alert('Please select a member to sign the policy with');
+      return;
+    }
+
     // Set loading state and clear previous response
     setIsSubmitting(true);
     setResponse(null);
 
     try {
-      // Submit the policy to the backend (without authentication)
+      // Submit the policy to the backend
       console.log('Submitting policy to backend:', formData);
+      console.log('Signing with member:', signingMember);
       
-      const result = await submitPolicy(node, policyType, formData, null, null);
+      // Only pass signing member if template requires signature and is not a member policy
+      const signingMemberToUse = (formTemplate.requires_signature && policyType !== "member_policy") ? signingMember : null;
+      const result = await submitPolicy(node, policyType, formData, null, signingMemberToUse);
       console.log('Submit result:', result);
 
       if (result.success) {
@@ -84,7 +96,7 @@ function PolicyGeneratorPage({ node }) {
   return (
     <div className="policy-generator">
       <div className="page-header">
-        <h2>Policy Generator</h2>
+        <h2>Security Policy Generator</h2>
         {node ? (
           <p className="node-info">Connected to: <strong>{node}</strong></p>
         ) : (
@@ -127,6 +139,32 @@ function PolicyGeneratorPage({ node }) {
           refreshTrigger={refreshTrigger}
           currentUserPubkey={null} // No authentication
         />
+      )}
+
+      {/* Sign With Selector - only show if template requires signature and is not a member policy */}
+      {node && formTemplate && formTemplate.requires_signature && policyType !== "member_policy" && (
+        <SignWithSelector
+          node={node}
+          currentUserPubkey={null} // No authentication - will fetch all members
+          selectedMember={signingMember}
+          onMemberChange={setSigningMember}
+          disabled={isSubmitting}
+          refreshTrigger={refreshTrigger}
+        />
+      )}
+
+      {/* Special message for member policies */}
+      {node && formTemplate && policyType === "member_policy" && (
+        <div className="member-policy-signing-info">
+          <div className="info-box">
+            <h4>📝 Member Policy Signing</h4>
+            <p>
+              <strong>Note:</strong> When creating a new member policy, the new member will automatically 
+              sign the policy themselves after their cryptographic keys are created. No additional 
+              signing member selection is needed.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Submit button for the form */}
