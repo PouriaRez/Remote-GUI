@@ -12,6 +12,8 @@ import Presets from './Presets';
 import Bookmarks from './Bookmarks';
 import SqlQueryGenerator from './SqlQueryGenerator';
 import BlockchainManager from './BlockchainManager';
+
+import PolicyGeneratorPage from './Security';
 // import Presets from './Presets';
 import '../styles/Dashboard.css'; // dashboard-specific styles
 
@@ -56,6 +58,7 @@ const Dashboard = () => {
             <Route path="bookmarks" element={<Bookmarks node = {selectedNode} />} />
             <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />
             <Route path="blockchain" element={<BlockchainManager node = {selectedNode} />} />
+            <Route path="security" element={<PolicyGeneratorPage node = {selectedNode} />} />
             {/* Default view */}
             <Route path="*" element={<Client node = {selectedNode}/>} />
           </Routes>

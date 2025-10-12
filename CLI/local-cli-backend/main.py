@@ -1,5 +1,6 @@
 import os
 import sys
+from security.security_router import security_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
@@ -15,6 +16,7 @@ from parsers import parse_response
 from classes import *
 from sql_router import sql_router
 from file_auth_router import file_auth_router
+
 
 # from helpers import make_request, grab_network_nodes, monitor_network, make_policy, send_json_data
 import os
@@ -41,6 +43,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(sql_router)
 app.include_router(file_auth_router)
+app.include_router(security_router)
 # 23.239.12.151:32349
 # run client () sql edgex extend=(+node_name, @ip, @port, @dbms_name, @table_name) and format = json and timezone=Europe/Dublin  select  timestamp, file, class, bbox, status  from factory_imgs where timestamp >= now() - 1 hour and timestamp <= NOW() order by timestamp desc --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file) -->  description (columns: bbox as shape.rect)
 
