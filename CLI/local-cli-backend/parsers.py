@@ -1,66 +1,41 @@
 # parsers.py
+import re
 import json
 
-def parse_table_fixed(text: str) -> tuple:
-    """
-    Parse a fixed-width table and return both table data and additional content.
-    Handles multiple table sections with the same headers by merging them.
-    Returns: (table_data, additional_content)
-    """
+def parse_table_fixed(text: str) -> list:
     lines = text.strip().splitlines()
 
+    lines = text.strip().splitlines()
     if len(lines) < 2:
         print("Not enough lines for a table.")
-        return [], ""
+        return []
 
-    # ========== MERGE TABLE CODE START ==========
-    # Find all table sections
-    table_sections = []
-    current_section_start = -1
+    separator_index = 0
+    for i, row in enumerate(lines):
+        if row and ('|' in row or '---' in row):
+            separator_index = i
+            break
     
-    for i, line in enumerate(lines):
-        # Look for separator lines that indicate table headers
-        if line and ('|' in line or '---' in line):
-            # Check if the previous line looks like headers (has multiple words)
-            if i > 0 and len(lines[i-1].split()) > 1:
-                if current_section_start >= 0:
-                    # End previous section
-                    table_sections.append((current_section_start, i-1))
-                # Start new section
-                current_section_start = i-1
-    
-    # Add the last section if it exists
-    if current_section_start >= 0:
-        # Find where this section ends
-        section_end = len(lines)
-        for i in range(current_section_start + 2, len(lines)):
-            # Look for empty lines or JSON content
-            if lines[i].strip() == '':
-                # Check if there's content after empty line
-                remaining_lines = lines[i+1:]
-                if remaining_lines and any(line.strip() for line in remaining_lines):
-                    section_end = i
-                    break
-            elif lines[i].strip().startswith('{'):
-                section_end = i
-                break
-        table_sections.append((current_section_start, section_end))
+    if separator_index > 0:
+        lines = lines[separator_index-1:]
 
-    print("Found table sections:", table_sections)
+    print("Lines", lines)
+    print("Separator Index", separator_index)
     
-    if not table_sections:
-        print("No table sections found.")
-        return [], text
+    # Get the header and separator rows
+    header_line = lines[0]
+    separator_line = lines[1]
 
-    # Parse the first section to get headers and boundaries
-    first_section_start, first_section_end = table_sections[0]
-    first_section_lines = lines[first_section_start:first_section_end]
-    
-    header_line = first_section_lines[0]
-    separator_line = first_section_lines[1]
-    
     print("Header Line", header_line)
     print("Separator Line", separator_line)
+
+    try:
+        cutoff_index = lines.index('')
+        lines = lines[:cutoff_index]
+    except ValueError:
+        pass  # No empty line found, proceed with the original lines
+
+    print("lines", lines)
 
     boundaries = [i for i, ch in enumerate(separator_line) if ch == ' ']
 
@@ -81,150 +56,93 @@ def parse_table_fixed(text: str) -> tuple:
         new_header = header_line[start:end]
         headers.append(new_header.strip())
 
+
     # Remove any empty header entries (if any)
     headers = [h for h in headers if h]
 
     print("Headers", headers)
 
-    # Process all table sections and merge the data
     data = []
-    for section_start, section_end in table_sections:
-        section_lines = lines[section_start:section_end]
-        print(f"Processing section {section_start}-{section_end}: {len(section_lines)} lines")
-        
-        # Skip header and separator lines (first 2 lines of each section)
-        for row in section_lines[2:]:
-            parts = []
-            for i in range(len(split_boundaries) - 1):
-                start = split_boundaries[i]
-                end = split_boundaries[i+1]
-                new_row_item = row[start:end]
-                parts.append(new_row_item.strip())
+    for row in lines[2:]:
+        parts = []
+        for i in range(len(split_boundaries) - 1):
+            start = split_boundaries[i]
+            end = split_boundaries[i+1]
+            new_row_item = row[start:end]
+            parts.append(new_row_item.strip())
 
-            if len(parts) == len(headers):
-                new_row = dict(zip(headers, parts))
-                data.append(new_row)
-
-    # Find additional content (after the last table section)
-    last_section_end = table_sections[-1][1] if table_sections else 0
-    additional_lines = lines[last_section_end:]
-    
-    # Clean up additional content - remove empty lines at start
-    while additional_lines and not additional_lines[0].strip():
-        additional_lines.pop(0)
-    
-    additional_content = '\n'.join(additional_lines) if additional_lines else ""
-
-    print("Merged data rows:", len(data))
-    print("Additional content", additional_content)
-    # ========== MERGE TABLE CODE END ==========
-    
-    return data, additional_content
+        if len(parts) == len(headers):
+            new_row = dict(zip(headers, parts))
+            data.append(new_row)
+    return data
 
 
 
-def parse_table(text: str) -> tuple:
+def parse_table(text: str) -> list:
     """
-    Parse a table-formatted text into a list of dictionaries and additional content.
-    Handles multiple table sections with the same headers by merging them.
-    Returns: (table_data, additional_content)
+    Parse a table-formatted text into a list of dictionaries.
+    This approach uses the positions of the pipe characters in the separator row
+    to determine column boundaries, and then slices the header and data rows accordingly.
     """
     lines = text.strip().splitlines()
     if len(lines) < 2:
         print("Not enough lines for a table.")
-        return [], ""
+        return []
 
-    # ========== MERGE TABLE CODE START ==========
-    # Find all table sections (pipe-delimited tables)
-    table_sections = []
-    current_section_start = -1
+    separator_index = 0
+    for i, row in enumerate(lines):
+        if '|' in row or '---' in row:
+            separator_index = i
+            break
     
-    for i, line in enumerate(lines):
-        # Look for separator lines that indicate table headers
-        if line and '|' in line:
-            # Check if the previous line looks like headers (has multiple words)
-            if i > 0 and len(lines[i-1].split()) > 1:
-                if current_section_start >= 0:
-                    # End previous section
-                    table_sections.append((current_section_start, i-1))
-                # Start new section
-                current_section_start = i-1
-    
-    # Add the last section if it exists
-    if current_section_start >= 0:
-        # Find where this section ends
-        section_end = len(lines)
-        for i in range(current_section_start + 2, len(lines)):
-            # Look for empty lines or JSON content
-            if lines[i].strip() == '':
-                # Check if there's content after empty line
-                remaining_lines = lines[i+1:]
-                if remaining_lines and any(line.strip() for line in remaining_lines):
-                    section_end = i
-                    break
-            elif lines[i].strip().startswith('{'):
-                section_end = i
-                break
-        table_sections.append((current_section_start, section_end))
+    if separator_index > 0:
+        lines = lines[separator_index-1:]
 
-    print("Found pipe table sections:", table_sections)
+    print("Lines", lines)
+    print("Separator Index", separator_index)
     
-    if not table_sections:
-        print("No table sections found.")
-        return [], text
+    # Get the header and separator rows
+    header_line = lines[0]
+    separator_line = lines[1]
+    
+    # Find the positions of the pipe characters in the separator line.
+    # These indices will be used as boundaries.
+    boundaries = [i for i, ch in enumerate(separator_line) if ch == '|']
+    # Also include the start (0) if not already there.
+    if boundaries and boundaries[0] != 0:
+        boundaries = [0] + boundaries
+    else:
+        boundaries = [0] + boundaries
 
-    # Parse the first section to get headers
-    first_section_start, first_section_end = table_sections[0]
-    first_section_lines = lines[first_section_start:first_section_end]
-    
-    header_line = first_section_lines[0]
-    separator_line = first_section_lines[1]
-    
-    print("Header Line", header_line)
-    print("Separator Line", separator_line)
-    
-    # Extract headers from the first section
-    headers = [h.strip() for h in header_line.split('|')]
+    split_boundaries = [len(i.strip())+1 for i in separator_line.split('|')]
+    split_boundaries.insert(0, 0)
+    split_boundaries = [sum(split_boundaries[:i+1]) for i in range(len(split_boundaries))]
+    split_boundaries.pop()
+
+    headers = []
+    for i in range(len(split_boundaries) - 1):
+        start = split_boundaries[i]
+        end = split_boundaries[i+1]
+        new_header = header_line[start:end]
+        headers.append(new_header.strip())
+
+
     # Remove any empty header entries (if any)
     headers = [h for h in headers if h]
     
-    print("Headers", headers)
-
-    # Process all table sections and merge the data
     data = []
-    for section_start, section_end in table_sections:
-        section_lines = lines[section_start:section_end]
-        print(f"Processing pipe section {section_start}-{section_end}: {len(section_lines)} lines")
-        
-        # Skip header and separator lines (first 2 lines of each section)
-        for line in section_lines[2:]:
-            # Skip if line is a separator line or empty
-            if set(line.strip()) in [{'|'}]:
-                continue
-            # Remove borders if present and then split
-            parts = [p.strip() for p in line.split('|')]
-            # Remove empty parts at the end (common with trailing |)
-            while parts and not parts[-1]:
-                parts.pop()
-            if len(parts) == len(headers):
-                row = dict(zip(headers, parts))
-                data.append(row)
-
-    # Find additional content (after the last table section)
-    last_section_end = table_sections[-1][1] if table_sections else 0
-    additional_lines = lines[last_section_end:]
-    
-    # Clean up additional content - remove empty lines at start
-    while additional_lines and not additional_lines[0].strip():
-        additional_lines.pop(0)
-    
-    additional_content = '\n'.join(additional_lines) if additional_lines else ""
-
-    print("Merged pipe table rows:", len(data))
-    print("Additional content", additional_content)
-    # ========== MERGE TABLE CODE END ==========
-    
-    return data, additional_content
+    for line in lines[2:]:
+        # print(line)
+        # Skip if line is a separator line or empty
+        if set(line.strip()) in [{'|'}]:
+            continue
+        # Remove borders if present and then split
+        parts = [p.strip() for p in line.split('|')]
+        parts.pop()
+        if len(parts) == len(headers):
+            row = dict(zip(headers, parts))
+            data.append(row)
+    return data
 
 
 
@@ -254,24 +172,16 @@ def parse_response(raw: str) -> dict:
     if isinstance(raw, bool):
         return {"type": "string", "data": str(raw).lower()}
 
-    # ========== MERGE TABLE CODE START ==========
     if '|' in raw:
         print("FOUND TABLE")
-        table_data, additional_content = parse_table(raw)
+        table_data = parse_table(raw)
         if table_data:
-            result = {"type": "table", "data": table_data}
-            if additional_content:
-                result["additional_content"] = additional_content
-            return result
+            return {"type": "table", "data": table_data}
     elif '---' in raw:
         print("FOUND FIXED TABLE NO | DELIMITERS")
-        table_data, additional_content = parse_table_fixed(raw)
+        table_data = parse_table_fixed(raw)
         if table_data:
-            result = {"type": "table", "data": table_data}
-            if additional_content:
-                result["additional_content"] = additional_content
-            return result
-    # ========== MERGE TABLE CODE END ==========
+            return {"type": "table", "data": table_data}
         
     if type(raw) is list:
         return {"type": "json", "data": raw}
