@@ -24,6 +24,9 @@ const Client = ({ node }) => {
   const [resultType, setResultType] = useState('');
   const [responseData, setResponseData] = useState(null);
   const [selectedBlobs, setSelectedBlobs] = useState([]);
+  const [executionTime, setExecutionTime] = useState(null);
+  const [lastExecutedCommand, setLastExecutedCommand] = useState(null);
+  const [executionTimestamp, setExecutionTimestamp] = useState(null);
   
   // Bookmark functionality
   const [showBookmarkModal, setShowBookmarkModal] = useState(false);
@@ -120,8 +123,14 @@ const Client = ({ node }) => {
     setError(null);
     setResponseData(null);
     setResultType('');
+    setExecutionTime(null);
+    setLastExecutedCommand(null);
+    setExecutionTimestamp(null);
 
     try {
+      console.log('Executing command:', command);
+      const startTime = Date.now();
+      
       const result = await sendCommand({
         connectInfo: node,
         method,
@@ -129,6 +138,14 @@ const Client = ({ node }) => {
         authUser,
         authPassword,
       });
+
+      const endTime = Date.now();
+      const executionTimeMs = endTime - startTime;
+      
+      console.log('Command execution result:', result);
+      setExecutionTime(executionTimeMs);
+      setLastExecutedCommand({ command, method });
+      setExecutionTimestamp(new Date());
 
       setResultType(result.type);
 
@@ -154,6 +171,9 @@ const Client = ({ node }) => {
       }
     } catch (err) {
       setError(err.message);
+      setExecutionTime(null);
+      setLastExecutedCommand(null);
+      setExecutionTimestamp(null);
     } finally {
       setLoading(false);
     }
@@ -165,15 +185,22 @@ const Client = ({ node }) => {
     }
     setLoading(true);
     setError(null);
+    setExecutionTime(null);
 
     try {
       // Build a comma-separated list of IDs (adjust if your blobs use a different key)
       const blobs = { blobs: selectedBlobs };
       // console.log('Fetching blobs:', blobs);
+      const startTime = Date.now();
+      
       const result = await viewBlobs({
         connectInfo: node,
         blobs: blobs,
       });
+
+      const endTime = Date.now();
+      const executionTimeMs = endTime - startTime;
+      setExecutionTime(executionTimeMs);
 
       console.log('Result:', result);
       // // Reuse your existing state machinery to display the new result
@@ -187,6 +214,7 @@ const Client = ({ node }) => {
       // }
     } catch (err) {
       setError(err.message);
+      setExecutionTime(null);
     } finally {
       setLoading(false);
       navigate('/dashboard/viewfiles', { state: { blobs: selectedBlobs } });
@@ -273,6 +301,16 @@ const Client = ({ node }) => {
     setBookmarkError('');
     setShowNewGroupInput(false);
     setNewGroupName('');
+  };
+
+  const formatExecutionTime = (ms) => {
+    if (ms < 1000) {
+      return `${ms}ms`;
+    } else if (ms < 60000) {
+      return `${(ms / 1000).toFixed(2)}s`;
+    } else {
+      return `${Math.floor(ms / 60000)}m ${((ms % 60000) / 1000).toFixed(1)}s`;
+    }
   };
 
   const handleCreateNewGroup = async () => {
@@ -483,6 +521,27 @@ const Client = ({ node }) => {
 
       {responseData && (
         <div className="response-box">
+          {executionTime && lastExecutedCommand && executionTimestamp && (
+            <div className="execution-time">
+              <div className="execution-time-header">
+                <strong>⏱️ Execution Time:</strong> {formatExecutionTime(executionTime)} 
+                {executionTime > 1000 && (
+                  <span className="execution-time-note">
+                    {' '}({executionTime}ms)
+                  </span>
+                )}
+              </div>
+              <div className="execution-time-details">
+                {/* <div className="execution-command">
+                  <strong>Command:</strong> {lastExecutedCommand.method} {lastExecutedCommand.command.substring(0, 100)}{lastExecutedCommand.command.length > 100 ? '...' : ''}
+                </div> */}
+                <div className="execution-timestamp">
+                  <strong>Executed at:</strong> {executionTimestamp.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          )}
+          
           {resultType === 'table' && Array.isArray(responseData) && (
             <DataTable data={responseData} />
           )}
