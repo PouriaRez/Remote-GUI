@@ -26,6 +26,15 @@
       "type": "GET",
       "button": "videos",
       "created_at": "2025-09-02T12:03:47.072314"
+    },
+    {
+      "id": "4147aa10-acb0-465d-9706-8808ff46924e",
+      "user_id": "default-user-12345",
+      "group_id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "command": "run client () sql opcua_demo format = table \"SELECT * FROM t1 LIMIT 20\"",
+      "type": "GET",
+      "button": "opcua",
+      "created_at": "2025-10-13T14:07:02.005761"
     }
   ]
 }
