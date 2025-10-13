@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import DataTable from '../components/DataTable'; // Adjust path as needed
 import BlobsTable from '../components/BlobsTable'; // Adjust path as needed
 import { sendCommand, viewBlobs, getBasePresetPolicy } from '../services/api'; // Adjust path as needed
-import { getPresetGroups, getPresetsByGroup } from '../services/file_auth';
+import { getPresetGroups, getPresetsByGroup, addPreset, addPresetGroup } from '../services/file_auth';
 import '../styles/Client.css'; // Optional: create client-specific CSS
 import { useEffect } from 'react';
 import { set } from 'mongoose';
@@ -24,6 +24,15 @@ const Client = ({ node }) => {
   const [resultType, setResultType] = useState('');
   const [responseData, setResponseData] = useState(null);
   const [selectedBlobs, setSelectedBlobs] = useState([]);
+  
+  // Bookmark functionality
+  const [showBookmarkModal, setShowBookmarkModal] = useState(false);
+  const [bookmarkGroupId, setBookmarkGroupId] = useState('');
+  const [bookmarkButtonName, setBookmarkButtonName] = useState('');
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState('');
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
 
   useEffect(() => {
     console.log('Selected blobs:', selectedBlobs);
@@ -47,7 +56,7 @@ const Client = ({ node }) => {
 
           const groupName = group.group_name;
           const obj = {
-            id: groupName,
+            id: group.id, // Use the actual group ID from API
             name: groupName,
             presets: presets.data.map(p => ({
               id: p.button,
@@ -184,6 +193,133 @@ const Client = ({ node }) => {
     }
   };
 
+  const handleBookmarkCommand = () => {
+    if (!command.trim()) {
+      setError('Please enter a command to bookmark');
+      return;
+    }
+    setBookmarkError('');
+    setBookmarkButtonName(command.substring(0, 30) + (command.length > 30 ? '...' : ''));
+    setShowBookmarkModal(true);
+  };
+
+  const handleSaveBookmark = async () => {
+    if (!bookmarkGroupId || !bookmarkButtonName.trim()) {
+      setBookmarkError('Please select a group and enter a button name');
+      return;
+    }
+
+    setBookmarkLoading(true);
+    setBookmarkError('');
+
+    try {
+      console.log('Saving bookmark with data:', {
+        group_id: bookmarkGroupId,
+        command: command.trim(),
+        type: method,
+        button: bookmarkButtonName.trim()
+      });
+      
+      const result = await addPreset({
+        preset: {
+          group_id: bookmarkGroupId,
+          command: command.trim(),
+          type: method,
+          button: bookmarkButtonName.trim()
+        }
+      });
+      
+      console.log('Bookmark save result:', result);
+
+      // Close modal and show success
+      setShowBookmarkModal(false);
+      setBookmarkGroupId('');
+      setBookmarkButtonName('');
+      setError(null);
+      
+      // Refresh presets to show the new bookmark
+      const check1 = await getPresetGroups();
+      const groupPresets = [];
+      for (const group of check1.data) {
+        const id = group.id;
+        const presets = await getPresetsByGroup({ groupId: id });
+        const groupName = group.group_name;
+        const obj = {
+          id: group.id, // Use the actual group ID from API
+          name: groupName,
+          presets: presets.data.map(p => ({
+            id: p.button,
+            buttonName: p.button || p.name,
+            type: p.type.toUpperCase(),
+            command: p.command
+          }))
+        };
+        groupPresets.push(obj);
+      }
+      setPresetGroups(groupPresets);
+      
+      alert('Command bookmarked successfully!');
+    } catch (err) {
+      setBookmarkError(err.message);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
+
+  const handleCancelBookmark = () => {
+    setShowBookmarkModal(false);
+    setBookmarkGroupId('');
+    setBookmarkButtonName('');
+    setBookmarkError('');
+    setShowNewGroupInput(false);
+    setNewGroupName('');
+  };
+
+  const handleCreateNewGroup = async () => {
+    if (!newGroupName.trim()) {
+      setBookmarkError('Please enter a group name');
+      return;
+    }
+
+    setBookmarkLoading(true);
+    setBookmarkError('');
+
+    try {
+      const result = await addPresetGroup({ name: newGroupName.trim() });
+      
+      // Refresh preset groups to include the new one
+      const check1 = await getPresetGroups();
+      const groupPresets = [];
+      for (const group of check1.data) {
+        const id = group.id;
+        const presets = await getPresetsByGroup({ groupId: id });
+        const groupName = group.group_name;
+        const obj = {
+          id: group.id, // Use the actual group ID from API
+          name: groupName,
+          presets: presets.data.map(p => ({
+            id: p.button,
+            buttonName: p.button || p.name,
+            type: p.type.toUpperCase(),
+            command: p.command
+          }))
+        };
+        groupPresets.push(obj);
+      }
+      setPresetGroups(groupPresets);
+      
+      // Set the new group as selected
+      setBookmarkGroupId(groupPresets.find(g => g.name === newGroupName.trim())?.id || '');
+      setShowNewGroupInput(false);
+      setNewGroupName('');
+      setBookmarkError('');
+    } catch (err) {
+      setBookmarkError(err.message);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
+
   return (
     <div className="client-container">
       <h2>Client Dashboard</h2>
@@ -285,14 +421,25 @@ const Client = ({ node }) => {
         <div className="form-group">
           <label>Command:</label>
           <div className="command-input-container">
-            <button
-              type="button"
-              className="paste-button"
-              onClick={handlePasteFromClipboard}
-              title="Paste from clipboard"
-            >
-              📋 Paste
-            </button>
+            <div className="command-buttons">
+              <button
+                type="button"
+                className="paste-button"
+                onClick={handlePasteFromClipboard}
+                title="Paste from clipboard"
+              >
+                📋 Paste
+              </button>
+              <button 
+                type="button" 
+                className="bookmark-button-small"
+                onClick={handleBookmarkCommand}
+                disabled={loading || !command.trim()}
+                title="Bookmark this command"
+              >
+                🔖 Bookmark
+              </button>
+            </div>
             <textarea
               rows={2}
               value={command}
@@ -354,6 +501,100 @@ const Client = ({ node }) => {
         </div>
       )}
         </>
+      )}
+
+      {/* Bookmark Modal */}
+      {showBookmarkModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>🔖 Bookmark Command</h3>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Command to bookmark:</label>
+                <pre className="command-preview">{command}</pre>
+              </div>
+              
+              <div className="form-group">
+                <label>Select Group:</label>
+                <div className="group-select-container">
+                  <select 
+                    value={bookmarkGroupId} 
+                    onChange={(e) => setBookmarkGroupId(e.target.value)}
+                    className="group-select"
+                    disabled={showNewGroupInput}
+                  >
+                    <option value="">Select a group...</option>
+                    {presetGroups.map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button 
+                    type="button"
+                    className="new-group-button"
+                    onClick={() => setShowNewGroupInput(!showNewGroupInput)}
+                    disabled={bookmarkLoading}
+                  >
+                    {showNewGroupInput ? 'Cancel' : '+ New Group'}
+                  </button>
+                </div>
+                
+                {showNewGroupInput && (
+                  <div className="new-group-input-container">
+                    <input
+                      type="text"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      placeholder="Enter new group name..."
+                      className="group-name-input"
+                    />
+                    <button 
+                      type="button"
+                      className="create-group-button"
+                      onClick={handleCreateNewGroup}
+                      disabled={bookmarkLoading || !newGroupName.trim()}
+                    >
+                      {bookmarkLoading ? 'Creating...' : 'Create Group'}
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="form-group">
+                <label>Button Name:</label>
+                <input
+                  type="text"
+                  value={bookmarkButtonName}
+                  onChange={(e) => setBookmarkButtonName(e.target.value)}
+                  placeholder="Enter a name for this bookmark..."
+                  className="button-name-input"
+                />
+              </div>
+              
+              {bookmarkError && (
+                <div className="error-message">{bookmarkError}</div>
+              )}
+            </div>
+            
+            <div className="modal-actions">
+              <button 
+                onClick={handleSaveBookmark}
+                disabled={bookmarkLoading || !bookmarkGroupId || !bookmarkButtonName.trim()}
+                className="save-bookmark-button"
+              >
+                {bookmarkLoading ? 'Saving...' : '💾 Save Bookmark'}
+              </button>
+              <button 
+                onClick={handleCancelBookmark}
+                disabled={bookmarkLoading}
+                className="cancel-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
