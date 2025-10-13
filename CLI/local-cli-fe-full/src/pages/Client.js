@@ -27,6 +27,7 @@ const Client = ({ node }) => {
   const [executionTime, setExecutionTime] = useState(null);
   const [lastExecutedCommand, setLastExecutedCommand] = useState(null);
   const [executionTimestamp, setExecutionTimestamp] = useState(null);
+  const [additionalContent, setAdditionalContent] = useState(null);
   
   // Bookmark functionality
   const [showBookmarkModal, setShowBookmarkModal] = useState(false);
@@ -126,6 +127,7 @@ const Client = ({ node }) => {
     setExecutionTime(null);
     setLastExecutedCommand(null);
     setExecutionTimestamp(null);
+    setAdditionalContent(null);
 
     try {
       console.log('Executing command:', command);
@@ -152,6 +154,12 @@ const Client = ({ node }) => {
       // If the API returns an array (table data), store it directly.
       if (result.type === 'table') {
         setResponseData(result.data);
+        // Store additional content if present
+        if (result.additional_content) {
+          setAdditionalContent(result.additional_content);
+        } else {
+          setAdditionalContent(null);
+        }
       } else if (result.type === 'blobs') {
         setResponseData(result.data);
         setSelectedBlobs([]); // clear any previous selection
@@ -174,6 +182,7 @@ const Client = ({ node }) => {
       setExecutionTime(null);
       setLastExecutedCommand(null);
       setExecutionTimestamp(null);
+      setAdditionalContent(null);
     } finally {
       setLoading(false);
     }
@@ -543,7 +552,15 @@ const Client = ({ node }) => {
           )}
           
           {resultType === 'table' && Array.isArray(responseData) && (
-            <DataTable data={responseData} />
+            <>
+              <DataTable data={responseData} />
+              {additionalContent && (
+                <div className="additional-content">
+                  <h4>Additional Information</h4>
+                  <pre className="additional-content-text">{additionalContent}</pre>
+                </div>
+              )}
+            </>
           )}
 
           {resultType === 'blobs' && Array.isArray(responseData) && (
