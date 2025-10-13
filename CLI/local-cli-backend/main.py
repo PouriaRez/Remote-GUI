@@ -77,7 +77,7 @@ def get_status():
 
 @app.post("/send-command/")
 def send_command(conn: Connection, command: Command):
-    raw_response = make_request(conn.conn, command.type, command.cmd)
+    raw_response = make_request(conn.conn, command.type, command.cmd.strip())
     print("raw_response", raw_response)
 
     structured_data = parse_response(raw_response)
