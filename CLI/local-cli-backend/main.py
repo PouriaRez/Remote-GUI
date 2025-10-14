@@ -1,6 +1,6 @@
 import os
 import sys
-from security.security_router import security_router
+from .security.security_router import security_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
@@ -19,7 +19,6 @@ from file_auth_router import file_auth_router
 
 
 # from helpers import make_request, grab_network_nodes, monitor_network, make_policy, send_json_data
-import os
 from helpers import make_request, grab_network_nodes, monitor_network, make_policy, send_json_data, make_preset_policy
 import helpers
 
