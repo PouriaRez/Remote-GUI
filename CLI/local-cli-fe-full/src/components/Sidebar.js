@@ -15,6 +15,7 @@ const Sidebar = () => {
       <NavLink to="blockchain" className={({ isActive }) => isActive ? 'active' : ''}>Blockchain Manager</NavLink>
       <NavLink to="presets" className={({ isActive }) => isActive ? 'active' : ''}>Presets</NavLink>
       <NavLink to="bookmarks" className={({ isActive }) => isActive ? 'active' : ''}>Bookmarks</NavLink>
+      <NavLink to="security" className={({ isActive }) => isActive ? 'active' : ''}>Security</NavLink>
     </nav>
   );
 };

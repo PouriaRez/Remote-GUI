@@ -1,4 +1,5 @@
 # parsers.py
+import re
 import json
 
 def parse_table_fixed(text: str) -> list:
@@ -8,52 +9,6 @@ def parse_table_fixed(text: str) -> list:
     if len(lines) < 2:
         print("Not enough lines for a table.")
         return []
-
-    # Split lines into a list of lists, splitting where the item is ''
-    split_lines = []
-    current_split = []
-    for line in lines:
-        if line.strip() == '':
-            if current_split:
-                split_lines.append(current_split)
-                current_split = []
-        else:
-            current_split.append(line)
-    if current_split:
-        split_lines.append(current_split)
-        
-
-    # For each list in split_lines, check for a table unit and combine lines after the top two rows.
-    # Keep the top two rows for the first table unit.
-    table_units = []
-    additional_info = []
-    top_added = False
-    for sublines in split_lines:
-        # Check if this unit contains '---' or '|', i.e. it's a table
-        if any(('---' in line or '|' in line) for line in sublines):
-            if not top_added:
-                # For the first table unit, keep the top two rows
-                if len(sublines) >= 2:
-                    table_units.extend(sublines[:2])   # header + separator
-                    table_units.extend(sublines[2:])   # the rest (body)
-                else:
-                    table_units.extend(sublines)       # not enough lines, just extend
-                top_added = True
-            else:
-                # For subsequent table units, only keep body rows (after first two lines)
-                if len(sublines) > 2:
-                    table_units.extend(sublines[2:])
-        else:
-            # Not a table unit, add to additional_info
-            additional_info.extend(sublines)
-    print("Combined and normalized table unit lines:", table_units)
-    # try:
-    #     additional_info = json.loads(' '.join([item.strip() for item in additional_info]))
-    # except Exception:
-    additional_info = ' '.join([item.strip() for item in additional_info])
-    print("Additional Info:", additional_info)
-
-    lines = table_units
 
     separator_index = 0
     for i, row in enumerate(lines):
@@ -119,7 +74,7 @@ def parse_table_fixed(text: str) -> list:
         if len(parts) == len(headers):
             new_row = dict(zip(headers, parts))
             data.append(new_row)
-    return {"data": data, "additional_info": additional_info}
+    return data
 
 
 
@@ -206,7 +161,6 @@ def parse_response(raw: str) -> dict:
     Checks if the response is JSON, table formatted, or a simple string,
     and returns a standardized JSON structure.
     """
-    
 
     # Check if text resembles a table (e.g., has headers and delimiters)
 
@@ -224,12 +178,9 @@ def parse_response(raw: str) -> dict:
             return {"type": "table", "data": table_data}
     elif '---' in raw:
         print("FOUND FIXED TABLE NO | DELIMITERS")
-        table_result = parse_table_fixed(raw)
-        if table_result and table_result.get("data"):
-            result = {"type": "table", "data": table_result["data"]}
-            if table_result.get("additional_info"):
-                result["additional_content"] = table_result["additional_info"]
-            return result
+        table_data = parse_table_fixed(raw)
+        if table_data:
+            return {"type": "table", "data": table_data}
         
     if type(raw) is list:
         return {"type": "json", "data": raw}
@@ -242,14 +193,8 @@ def parse_response(raw: str) -> dict:
     # if parsed:
     #     return {"type": "json", "data": parsed}
     
-    if isinstance(raw, str):
-        # Replace \r\n with \n and normalize line endings
-        raw = raw.replace('\r\n', '\n').replace('\r', '\n')
-        # Remove leading/trailing whitespace
-        raw = raw.strip()
-        
     # Otherwise, treat it as a simple message
-    return {"type": "string", "data": raw}
+    return {"type": "string", "data": raw.strip()}
 
 
 
