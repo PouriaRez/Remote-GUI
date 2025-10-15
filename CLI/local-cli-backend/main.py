@@ -1,6 +1,6 @@
 import os
 import sys
-from security.security_router import security_router
+from .security.security_router import security_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
