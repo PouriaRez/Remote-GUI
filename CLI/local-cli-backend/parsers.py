@@ -206,50 +206,89 @@ def parse_response(raw: str) -> dict:
     Checks if the response is JSON, table formatted, or a simple string,
     and returns a standardized JSON structure.
     """
-    
+    try:
+        print(f"=== PARSING RESPONSE ===")
+        print(f"Raw response type: {type(raw)}")
+        print(f"Raw response length: {len(str(raw)) if raw else 0}")
+        print(f"Raw response preview: {str(raw)[:500] if raw else 'None'}...")
+        print(f"=== END PARSING RESPONSE ===")
+    except Exception as e:
+        print(f"Error in parse_response debugging: {e}")
 
-    # Check if text resembles a table (e.g., has headers and delimiters)
+    try:
+        # Check if text resembles a table (e.g., has headers and delimiters)
 
-    if isinstance(raw, dict) and 'blobs' in raw:
-        return {"type": "blobs", "data": raw['blobs']['Query']}
-        # return {"type": "table", "data": raw['blobs']['Query']}
+        if isinstance(raw, dict) and 'blobs' in raw:
+            print("raw blobs:", raw)
+            return {"type": "blobs", "data": raw['blobs']['Query']}
+            # return {"type": "table", "data": raw['blobs']['Query']}
 
-    if isinstance(raw, bool):
-        return {"type": "string", "data": str(raw).lower()}
-
-    if '|' in raw:
-        print("FOUND TABLE")
-        table_data = parse_table(raw)
-        if table_data:
-            return {"type": "table", "data": table_data}
-    elif '---' in raw:
-        print("FOUND FIXED TABLE NO | DELIMITERS")
-        table_result = parse_table_fixed(raw)
-        if table_result and table_result.get("data"):
-            result = {"type": "table", "data": table_result["data"]}
-            if table_result.get("additional_info"):
-                result["additional_content"] = table_result["additional_info"]
-            return result
+        if isinstance(raw, dict) and 'streaming' in raw:
+            print("raw streaming:", raw)
+            # For streaming, the data structure might be different than blobs
+            streaming_data = raw['streaming']
+            # Check if it has the same structure as blobs
+            if isinstance(streaming_data, dict) and 'Query' in streaming_data:
+                return {"type": "streaming", "data": streaming_data['Query']}
+            else:
+                # If it's direct data, use it as is
+                return {"type": "streaming", "data": streaming_data}
         
-    if type(raw) is list:
-        return {"type": "json", "data": raw}
-    
-    if type(raw) is dict:
-        return {"type": "json", "data": raw}
+        if isinstance(raw, bool):
+            return {"type": "string", "data": str(raw).lower()}
+
+        if '|' in raw:
+            print("FOUND TABLE")
+            table_data = parse_table(raw)
+            if table_data:
+                return {"type": "table", "data": table_data}
+        elif '---' in raw:
+            print("FOUND FIXED TABLE NO | DELIMITERS")
+            table_result = parse_table_fixed(raw)
+            if table_result and table_result.get("data"):
+                result = {"type": "table", "data": table_result["data"]}
+                if table_result.get("additional_info"):
+                    result["additional_content"] = table_result["additional_info"]
+                return result
+            
+        if type(raw) is list:
+            return {"type": "json", "data": raw}
         
-    # Try to parse as JSON first
-    # parsed = parse_json(raw_text)
-    # if parsed:
-    #     return {"type": "json", "data": parsed}
-    
-    if isinstance(raw, str):
-        # Replace \r\n with \n and normalize line endings
-        raw = raw.replace('\r\n', '\n').replace('\r', '\n')
-        # Remove leading/trailing whitespace
-        raw = raw.strip()
+        if type(raw) is dict:
+            return {"type": "json", "data": raw}
+            
+        # Try to parse as JSON first
+        # parsed = parse_json(raw_text)
+        # if parsed:
+        #     return {"type": "json", "data": parsed}
         
-    # Otherwise, treat it as a simple message
-    return {"type": "string", "data": raw}
+        if isinstance(raw, str):
+            # Replace \r\n with \n and normalize line endings
+            raw = raw.replace('\r\n', '\n').replace('\r', '\n')
+            # Remove leading/trailing whitespace
+            raw = raw.strip()
+            
+        # Otherwise, treat it as a simple message
+        return {"type": "string", "data": raw}
+    
+    except Exception as e:
+        print(f"=== PARSE_RESPONSE ERROR ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Raw data type: {type(raw)}")
+        print(f"Raw data: {str(raw)[:1000] if raw else 'None'}")
+        print(f"=== END PARSE_RESPONSE ERROR ===")
+        
+        return {
+            "type": "error",
+            "data": f"Error parsing response: {str(e)}",
+            "error_details": {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "raw_data_type": str(type(raw)),
+                "raw_data_preview": str(raw)[:500] if raw else 'None'
+            }
+        }
 
 
 

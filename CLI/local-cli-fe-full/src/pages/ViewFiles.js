@@ -15,8 +15,13 @@ const ViewFiles = () => {
   const [expandedFile, setExpandedFile] = useState(null);
 
   const location = useLocation();
-  const { blobs } = location.state || { }; // Use optional chaining to avoid errors if state is undefined
+  const { blobs, isStreaming, nodeInfo } = location.state || { }; // Use optional chaining to avoid errors if state is undefined
   console.log('ViewFiles component rendered with files state:', blobs);
+  console.log('Blobs type:', typeof blobs);
+  console.log('Blobs is array:', Array.isArray(blobs));
+  console.log('Blobs length:', blobs ? blobs.length : 'N/A');
+  console.log('Is streaming:', isStreaming);
+  console.log('Node info:', nodeInfo);
 
   const files = Array.isArray(blobs)
     ? blobs.map(obj => `${obj.dbms_name}.${obj.table_name}.${obj.file}`)
@@ -25,42 +30,121 @@ const ViewFiles = () => {
 
   // List of your filenames in public/static/
   const dummyFiles = [
-    // 'edgex.factory_imgs.0e5646150cddf0549be1e165bf878090.jpeg',
-    // '277d090b5cdbd0a539315e48708e6168.jpeg',
-    // 'anylogLogo.png',
-    // 'report.pdf',
     'flower.jpg',
-
-    // 'example.wav',
-    // 'video.mp4',
     // …add as many as you like
   ];
 
   const finalFiles = files || dummyFiles;
 
+  // Function to render blob content (streaming vs regular)
+  const renderBlobContent = (blob, idx) => {
+    if (isStreaming) {
+      // For streaming, use the constructed URL
+      return (
+        <div
+          key={idx}
+          className="streaming-card"
+        >
+          <h4 className="streaming-header">📡 {blob.file}</h4>
+          <div className="streaming-content">
+            <div className="streaming-info">
+              <p><strong>DBMS:</strong> {blob.dbms}</p>
+              <p><strong>Table:</strong> {blob.table}</p>
+              <p><strong>ID:</strong> {blob.id}</p>
+              <p><strong>Node:</strong> {blob.ip}:{blob.port}</p>
+            </div>
+            <div className="streaming-url-section">
+              <p><strong>Streaming URL:</strong></p>
+              <code className="streaming-url">{blob.streaming_url}</code>
+            </div>
+            <div className="streaming-actions">
+              <button 
+                onClick={() => window.open(blob.streaming_url, '_blank')}
+                className="stream-open-button"
+              >
+                🎬 Open Stream
+              </button>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(blob.streaming_url);
+                  alert('Streaming URL copied to clipboard!');
+                }}
+                className="stream-copy-button"
+              >
+                📋 Copy URL
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      // Regular blob handling (existing code)
+      const name = `${blob.dbms_name}.${blob.table_name}.${blob.file}`;
+      const url = `${BACKEND_URL}/static/${name}`;
+      console.log("url", url);
+      return (
+        <div
+          key={idx}
+          className="view-files-card"
+          onClick={() => setExpandedFile(name)}
+        >
+          <h4 className="view-files-header">{name}</h4>
+          <div className="view-files-wrapper">
+            <FileViewerAuto src={url} />
+          </div>
+        </div>
+      );
+    }
+  };
+
   return (
     <>
-      <div className="view-files-grid">
-        {finalFiles.map((name, idx) => {
-          // const url = `${BACKEND_URL}/static/${name}`;
-          const url = `${BACKEND_URL}/static/${name}`;
-          console.log("url", url);
-          return (
-            <div
-              key={idx}
-              className="view-files-card"
-              onClick={() => setExpandedFile(name)}
-            >
-              <h4 className="view-files-header">{name}</h4>
-              <div className="view-files-wrapper">
-                <FileViewerAuto src={url} />
-              </div>
+      {isStreaming && (
+        <div className="streaming-notice">
+          📡 <strong>Streaming Mode</strong> - Click "Open Stream" to view files directly from the node
+        </div>
+      )}
+      
+      <div className={isStreaming ? "streaming-grid" : "view-files-grid"}>
+        {isStreaming ? (
+          // Render streaming blobs
+          Array.isArray(blobs) && blobs.length > 0 ? (
+            blobs.map((blob, idx) => renderBlobContent(blob, idx))
+          ) : (
+            <div className="no-streaming-data">
+              <p>No streaming data available.</p>
+              <p>Please go back and select some blobs first.</p>
             </div>
-          );
-        })}
+          )
+        ) : (
+          // Render regular files
+          Array.isArray(finalFiles) && finalFiles.length > 0 ? (
+            finalFiles.map((name, idx) => {
+              const url = `${BACKEND_URL}/static/${name}`;
+              console.log("url", url);
+              return (
+                <div
+                  key={idx}
+                  className="view-files-card"
+                  onClick={() => setExpandedFile(name)}
+                >
+                  <h4 className="view-files-header">{name}</h4>
+                  <div className="view-files-wrapper">
+                    <FileViewerAuto src={url} />
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="no-files-data">
+              <p>No files available.</p>
+              <p>Please go back and select some blobs first.</p>
+            </div>
+          )
+        )}
       </div>
 
-      {expandedFile && (
+      {expandedFile && !isStreaming && (
         <div className="modal-overlay" onClick={() => setExpandedFile(null)}>
           <div
             className="modal-content"

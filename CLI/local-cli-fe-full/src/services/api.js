@@ -245,6 +245,7 @@ export async function getBookmarks({ jwt }) {
   }
 }
 
+
 export async function viewBlobs({ connectInfo, blobs }) {
   if (!connectInfo || !blobs) {
     alert('Missing required fields');
@@ -275,6 +276,42 @@ export async function viewBlobs({ connectInfo, blobs }) {
     return data;
   } catch (error) {
     console.error('Error viewing blobs:', error);
+    throw error;
+  }
+}
+
+export async function viewStreamingBlobs({ connectInfo, blobs }) {
+  if (!connectInfo || !blobs) {
+    alert('Missing required fields');
+    return;
+  }
+
+  try {
+    const requestBody = {
+      connectInfo: connectInfo,
+      blobs: blobs,
+    };
+
+    console.log("API_URL", API_URL);
+    console.log("Streaming request body:", requestBody);
+
+    const response = await fetch(`${API_URL}/view-streaming/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Streaming response:", data);
+    return data;
+  } catch (error) {
+    console.error('Error viewing streaming blobs:', error);
     throw error;
   }
 }
