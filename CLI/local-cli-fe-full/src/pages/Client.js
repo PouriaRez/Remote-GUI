@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../components/DataTable'; // Adjust path as needed
 import BlobsTable from '../components/BlobsTable'; // Adjust path as needed
-import { sendCommand, viewBlobs, getBasePresetPolicy } from '../services/api'; // Adjust path as needed
+import { sendCommand, viewBlobs, viewStreamingBlobs, getBasePresetPolicy } from '../services/api'; // Adjust path as needed
 import { getPresetGroups, getPresetsByGroup, addPreset, addPresetGroup } from '../services/file_auth';
 import '../styles/Client.css'; // Optional: create client-specific CSS
 import { useEffect } from 'react';
@@ -151,6 +151,36 @@ const Client = ({ node }) => {
 
       setResultType(result.type);
 
+      // Handle error responses with detailed information
+      if (result.type === 'error') {
+        let errorMessage = result.data || 'Unknown error occurred';
+        
+        // Include detailed error information if available
+        if (result.error_details) {
+          errorMessage += `\n\n=== DETAILED ERROR INFORMATION ===\n`;
+          errorMessage += `Error Type: ${result.error_details.error_type || 'Unknown'}\n`;
+          errorMessage += `Command: ${result.error_details.command || command}\n`;
+          errorMessage += `Connection: ${result.error_details.connection || node}\n`;
+          errorMessage += `Location: ${result.error_details.location || 'Unknown'}\n`;
+          
+          if (result.error_details.error_message) {
+            errorMessage += `\nFull Error Message:\n${result.error_details.error_message}`;
+          }
+          
+          // Add any additional error details
+          Object.keys(result.error_details).forEach(key => {
+            if (!['error_type', 'command', 'connection', 'location', 'error_message'].includes(key)) {
+              errorMessage += `\n${key}: ${result.error_details[key]}`;
+            }
+          });
+        }
+        
+        setError(errorMessage);
+        setResponseData(null);
+        setResultType('');
+        return;
+      }
+
       // If the API returns an array (table data), store it directly.
       if (result.type === 'table') {
         setResponseData(result.data);
@@ -160,7 +190,18 @@ const Client = ({ node }) => {
         } else {
           setAdditionalContent(null);
         }
-      } else if (result.type === 'blobs') {
+      } else if (result.type === 'blobs' || result.type === 'streaming') {
+        console.log("=== BLOB/STREAMING RESPONSE ===");
+        console.log("Result type:", result.type);
+        console.log("Result data:", result.data);
+        console.log("Result data type:", typeof result.data);
+        console.log("Is array:", Array.isArray(result.data));
+        if (Array.isArray(result.data) && result.data.length > 0) {
+          console.log("First item:", result.data[0]);
+          console.log("First item keys:", Object.keys(result.data[0]));
+        }
+        console.log("=== END BLOB/STREAMING RESPONSE ===");
+        
         setResponseData(result.data);
         setSelectedBlobs([]); // clear any previous selection
       } else if (result.type === 'json') {
@@ -178,7 +219,21 @@ const Client = ({ node }) => {
         );
       }
     } catch (err) {
-      setError(err.message);
+      console.log("=== FRONTEND ERROR ===");
+      console.log("Error object:", err);
+      console.log("Error message:", err.message);
+      console.log("Error stack:", err.stack);
+      console.log("Error name:", err.name);
+      console.log("=== END FRONTEND ERROR ===");
+      
+      let errorMessage = err.message || 'Unknown error occurred';
+      
+      // Add additional error details if available
+      if (err.stack) {
+        errorMessage += `\n\nStack trace:\n${err.stack}`;
+      }
+      
+      setError(errorMessage);
       setExecutionTime(null);
       setLastExecutedCommand(null);
       setExecutionTimestamp(null);
@@ -199,34 +254,66 @@ const Client = ({ node }) => {
     try {
       // Build a comma-separated list of IDs (adjust if your blobs use a different key)
       const blobs = { blobs: selectedBlobs };
-      // console.log('Fetching blobs:', blobs);
+      console.log('Fetching blobs:', blobs);
       const startTime = Date.now();
       
-      const result = await viewBlobs({
-        connectInfo: node,
-        blobs: blobs,
-      });
+      console.log('result type:', resultType);
+      
+      // Check if this is streaming data
+      const isStreaming = resultType === 'streaming';
+      
+      if (isStreaming) {
+        // Use streaming API
+        console.log('Using streaming API...');
+        console.log('About to send blobs to streaming API:', JSON.stringify(blobs, null, 2));
+        const result = await viewStreamingBlobs({
+          connectInfo: node,
+          blobs: blobs,
+        });
+        
+        const endTime = Date.now();
+        const executionTimeMs = endTime - startTime;
+        setExecutionTime(executionTimeMs);
+        
+        console.log('Streaming result:', result);
+        
+        // Navigate to ViewFiles with streaming data
+        navigate('/dashboard/viewfiles', { 
+          state: { 
+            blobs: result.data,
+            isStreaming: true,
+            nodeInfo: node
+          } 
+        });
+      } else {
+        // For regular blobs, use the existing API
+        console.log('Using regular blob API...');
+        const result = await viewBlobs({
+          connectInfo: node,
+          blobs: blobs,
+        });
 
-      const endTime = Date.now();
-      const executionTimeMs = endTime - startTime;
-      setExecutionTime(executionTimeMs);
+        const endTime = Date.now();
+        const executionTimeMs = endTime - startTime;
+        setExecutionTime(executionTimeMs);
 
-      console.log('Result:', result);
-      // // Reuse your existing state machinery to display the new result
-      // setResultType(result.type);
-      // setResponseData(result.type === 'table' || result.type === 'blobs'
-      //   ? result.data
-      //   : JSON.stringify(result.data, null, 2)
-      // );
-      // if (result.type === 'blobs') {
-      //   setSelectedBlobs([]); // optionally clear selection if you want
-      // }
+        console.log('Regular blob result:', result);
+        
+        // Navigate to ViewFiles with regular data
+        navigate('/dashboard/viewfiles', { 
+          state: { 
+            blobs: selectedBlobs,
+            isStreaming: false,
+            nodeInfo: node
+          } 
+        });
+      }
     } catch (err) {
+      console.error('Error in handleViewBlobs:', err);
       setError(err.message);
       setExecutionTime(null);
     } finally {
       setLoading(false);
-      navigate('/dashboard/viewfiles', { state: { blobs: selectedBlobs } });
     }
   };
 
@@ -506,13 +593,25 @@ const Client = ({ node }) => {
         </div>
       )}
 
-      {resultType === 'blobs' && (
+      {(resultType === 'blobs' || resultType === 'streaming') && (
         <div className="selected-blobs">
           <h3>Selected Blobs:</h3>
           {selectedBlobs.length > 0 ? (
             <ul>
               {selectedBlobs.map((blob, i) => (
-                <li key={i}>{JSON.stringify(blob)}</li>
+                <li key={i}>
+                  <div className="blob-item">
+                    {blob.id && <div className="blob-id"><strong>ID:</strong> {blob.id}</div>}
+                    {blob.file && <div className="blob-file"><strong>File:</strong> {blob.file}</div>}
+                    {blob.dbms_name && <div className="blob-dbms"><strong>DBMS:</strong> {blob.dbms_name}</div>}
+                    {blob.table_name && <div className="blob-table"><strong>Table:</strong> {blob.table_name}</div>}
+                    {blob.ip && <div className="blob-ip"><strong>IP:</strong> {blob.ip}</div>}
+                    {blob.port && <div className="blob-port"><strong>Port:</strong> {blob.port}</div>}
+                    {!blob.id && !blob.file && !blob.dbms_name && !blob.table_name && !blob.ip && !blob.port && (
+                      <div className="blob-raw">{JSON.stringify(blob, null, 2)}</div>
+                    )}
+                  </div>
+                </li>
               ))}
             </ul>
           ) : (
@@ -563,15 +662,24 @@ const Client = ({ node }) => {
             </>
           )}
 
-          {resultType === 'blobs' && Array.isArray(responseData) && (
-            <BlobsTable
-              data={responseData}
-              keyField="id" // adjust if blobs use a different unique key
-              onSelectionChange={setSelectedBlobs}
-            />
+          {(resultType === 'blobs' || resultType === 'streaming') && (
+            <>
+              {Array.isArray(responseData) ? (
+                <BlobsTable
+                  data={responseData}
+                  keyField="id" // adjust if blobs use a different unique key
+                  onSelectionChange={setSelectedBlobs}
+                />
+              ) : (
+                <div className="streaming-data">
+                  <h4>Streaming Data (Raw Format)</h4>
+                  <pre>{JSON.stringify(responseData, null, 2)}</pre>
+                </div>
+              )}
+            </>
           )}
 
-          {resultType !== 'table' && resultType !== 'blobs' && (
+          {resultType !== 'table' && resultType !== 'blobs' && resultType !== 'streaming' && (
             <pre>{responseData}</pre>
           )}
         </div>
