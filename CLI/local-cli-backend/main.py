@@ -1,3 +1,4 @@
+# (venv) ➜  Remote-GUI git:(bchain-optimz) ✗ uvicorn CLI.local-cli-backend.main:app --reload
 import os
 import sys
 from .security.security_router import security_router
