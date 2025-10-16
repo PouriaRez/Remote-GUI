@@ -44,6 +44,15 @@
       "type": "GET",
       "button": "streaming",
       "created_at": "2025-10-14T19:15:12.336723"
+    },
+    {
+      "id": "daed3ad7-9b54-46e8-b315-c1ec6daa83ff",
+      "user_id": "default-user-12345",
+      "group_id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "command": "get processes",
+      "type": "GET",
+      "button": "getproc",
+      "created_at": "2025-10-16T13:21:14.579347"
     }
   ]
 }
