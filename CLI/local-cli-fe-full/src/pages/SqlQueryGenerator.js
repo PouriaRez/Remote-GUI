@@ -70,6 +70,7 @@ const SqlQueryGenerator = ({ node }) => {
   const [executionResult, setExecutionResult] = useState(null);
   const [executionError, setExecutionError] = useState(null);
   const [executionTime, setExecutionTime] = useState(null);
+  const [additionalContent, setAdditionalContent] = useState(null);
 
   // Fetch databases on component mount
   useEffect(() => {
@@ -608,6 +609,7 @@ const SqlQueryGenerator = ({ node }) => {
     setExecutionError(null);
     setExecutionResult(null);
     setExecutionTime(null);
+    setAdditionalContent(null);
 
     try {
       console.log('Executing query:', query);
@@ -626,11 +628,19 @@ const SqlQueryGenerator = ({ node }) => {
       setExecutionResult(result);
       setExecutionError(null);
       setExecutionTime(executionTimeMs);
+      
+      // Store additional content if present
+      if (result.additional_content) {
+        setAdditionalContent(result.additional_content);
+      } else {
+        setAdditionalContent(null);
+      }
     } catch (err) {
       console.error('Query execution error:', err);
       setExecutionError(`Execution failed: ${err.message}`);
       setExecutionResult(null);
       setExecutionTime(null);
+      setAdditionalContent(null);
     } finally {
       setExecuting(false);
     }
@@ -666,6 +676,7 @@ const SqlQueryGenerator = ({ node }) => {
     setExecutionResult(null);
     setExecutionError(null);
     setExecutionTime(null);
+    setAdditionalContent(null);
   };
 
   const addAggregation = () => {
@@ -1816,6 +1827,12 @@ const SqlQueryGenerator = ({ node }) => {
                   ) : (
                     <div className="no-data-message">
                       <p>No data returned from query.</p>
+                    </div>
+                  )}
+                  {additionalContent && (
+                    <div className="additional-content">
+                      <h4>Additional Information</h4>
+                      <pre className="additional-content-text">{additionalContent}</pre>
                     </div>
                   )}
                 </div>
