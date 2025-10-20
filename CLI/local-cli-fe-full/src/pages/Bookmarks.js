@@ -8,7 +8,7 @@ import {
 } from "../services/file_auth";
 import "../styles/Bookmarks.css";
 
-const Bookmarks = () => {
+const Bookmarks = ({ node, onSelectNode }) => {
   const [bookmarks, setBookmarks] = useState([]);
   const [newBookmark, setNewBookmark] = useState({
     node: "",
@@ -17,6 +17,7 @@ const Bookmarks = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [nodeSelectionMsg, setNodeSelectionMsg] = useState("");
 
   // Import functionality
   const [importFile, setImportFile] = useState(null);
@@ -40,6 +41,17 @@ const Bookmarks = () => {
       window.removeEventListener('bookmark-refresh', handleBookmarkRefresh);
     };
   }, []);
+
+  // Auto-clear node selection message
+  useEffect(() => {
+    if (!nodeSelectionMsg) return;
+
+    const timer = setTimeout(() => {
+      setNodeSelectionMsg("");
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [nodeSelectionMsg]);
 
   const loadBookmarks = async () => {
     try {
@@ -406,14 +418,34 @@ const Bookmarks = () => {
                     )}
                   </div>
                 </div>
-                <button
-                  className="delete-btn"
-                  disabled={loading}
-                  onClick={() => handleDeleteBookmark(bookmark.node)}
-                  title="Delete bookmark"
-                >
-                  🗑️
-                </button>
+                <div className="bookmark-actions">
+                  <button
+                    className="use-node-btn"
+                    disabled={loading}
+                    onClick={() => {
+                      console.log("Use Node clicked for:", bookmark.node);
+                      console.log("onSelectNode function:", onSelectNode);
+                      if (onSelectNode) {
+                        onSelectNode(bookmark.node);
+                        setNodeSelectionMsg(`✅ Selected node: ${bookmark.node}`);
+                        console.log("Node selection function called");
+                      } else {
+                        console.log("onSelectNode function not available");
+                      }
+                    }}
+                    title="Use this node as selected node"
+                  >
+                    ✅ Use Node
+                  </button>
+                  <button
+                    className="delete-btn"
+                    disabled={loading}
+                    onClick={() => handleDeleteBookmark(bookmark.node)}
+                    title="Delete bookmark"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </li>
             ))
           )}
@@ -423,6 +455,9 @@ const Bookmarks = () => {
       {error && <div className="error-message">{error}</div>}
       {successMsg && (
         <div className="success-message">{successMsg}</div>
+      )}
+      {nodeSelectionMsg && (
+        <div className="success-message">{nodeSelectionMsg}</div>
       )}
     </div>
   );

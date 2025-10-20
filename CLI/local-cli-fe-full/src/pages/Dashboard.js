@@ -23,6 +23,10 @@ const Dashboard = () => {
   const [nodes, setNodes] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
 
+  // Debug logging
+  console.log("Dashboard - selectedNode:", selectedNode);
+  console.log("Dashboard - nodes:", nodes);
+
   // console.log(localStorage);
 
   // Adds a new node (if valid and not already in the list)
@@ -55,7 +59,14 @@ const Dashboard = () => {
             <Route path="userprofile" element={<UserProfile node = {selectedNode}/>} />
             <Route path="viewfiles" element={<ViewFiles node = {selectedNode}/>} />
             <Route path="presets" element={<Presets node = {selectedNode} />} />
-            <Route path="bookmarks" element={<Bookmarks node = {selectedNode} />} />
+            <Route path="bookmarks" element={<Bookmarks node = {selectedNode} onSelectNode={(node) => {
+              // Add node to nodes list if not already present
+              if (node && !nodes.includes(node)) {
+                setNodes(prevNodes => [...prevNodes, node]);
+              }
+              // Set as selected node
+              setSelectedNode(node);
+            }} />} />
             <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />
             <Route path="blockchain" element={<BlockchainManager node = {selectedNode} />} />
             <Route path="security" element={<PolicyGeneratorPage node = {selectedNode} />} />
