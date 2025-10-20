@@ -73,15 +73,30 @@ const Bookmarks = ({ node, onSelectNode }) => {
     }
     setLoading(true);
     try {
+      // Create the bookmark with the node
       const res = await bookmarkNode({ node: newBookmark.node });
       console.log("Bookmark created:", res);
+      
+      // If there's a description, update it
+      if (newBookmark.description && newBookmark.description.trim()) {
+        try {
+          await updateBookmarkDescription({ 
+            node: newBookmark.node, 
+            description: newBookmark.description.trim() 
+          });
+          console.log("Bookmark description updated");
+        } catch (descError) {
+          console.warn("Failed to update bookmark description:", descError);
+          // Don't fail the entire operation if description update fails
+        }
+      }
       
       // Reload bookmarks to get the updated list
       await loadBookmarks();
       
       setNewBookmark({ node: "", description: "" });
       setError("");
-      setSuccessMsg(`Bookmark "${newBookmark.node}" created`);
+      setSuccessMsg(`Bookmark "${newBookmark.node}" created${newBookmark.description ? ' with description' : ''}`);
     } catch (error) {
       setError("Failed to create bookmark");
     } finally {
@@ -335,7 +350,7 @@ const Bookmarks = ({ node, onSelectNode }) => {
         <div className="form-row">
           <input
             type="text"
-            placeholder="Node name"
+            placeholder="Node ip:port"
             value={newBookmark.node}
             onChange={e => setNewBookmark({ ...newBookmark, node: e.target.value })}
           />

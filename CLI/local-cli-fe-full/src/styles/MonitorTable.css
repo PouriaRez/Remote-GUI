@@ -81,6 +81,22 @@
   background-color: #004085;
 }
 
+.cancel-edit-btn {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  margin-left: 10px;
+}
+
+.cancel-edit-btn:hover {
+  background-color: #545b62;
+}
+
 /* Active Thresholds Styles */
 .active-thresholds {
   background-color: #e3f2fd;
@@ -109,9 +125,36 @@
   padding: 6px 12px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   font-size: 14px;
   color: #1976d2;
+}
+
+.threshold-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.edit-threshold-btn {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.edit-threshold-btn:hover {
+  background-color: #138496;
 }
 
 .remove-threshold-btn {
