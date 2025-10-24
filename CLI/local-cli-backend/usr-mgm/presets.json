@@ -1,58 +1,85 @@
 {
   "presets": [
     {
-      "id": "f0c76471-c72d-4098-9871-d518b1f99102",
+      "id": "2fe81361-e35e-42bd-9813-ddbd3fb5402f",
       "user_id": "default-user-12345",
-      "group_id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "group_id": "feade93f-fdb6-4763-a1c2-7f845384c763",
       "command": "run client () sql cos format = json \"SELECT a_current, b_current, c_current FROM pp_pm LIMIT 20\"",
       "type": "GET",
       "button": "pppm20",
-      "created_at": "2025-09-02T09:57:50.192133"
+      "created_at": "2025-10-23T08:33:36.062499"
     },
     {
-      "id": "7a918b00-280f-44d0-9948-4e38448b4de2",
+      "id": "bf684059-08a9-4933-92cb-4128bf47cb77",
       "user_id": "default-user-12345",
-      "group_id": "f1bda500-0f96-4b3d-ae95-92dce3f71129",
-      "command": "run client () sql edgex extend=(+node_name, @ip, @port, @dbms_name, @table_name) and format = json and timezone=Europe/Dublin  select  timestamp, file, class, bbox, status  from factory_imgs where timestamp >= now() - 1 hour and timestamp <= NOW() order by timestamp desc --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file) -->  description (columns: bbox as shape.rect)",
-      "type": "GET",
-      "button": "images",
-      "created_at": "2025-09-02T12:01:55.826357"
-    },
-    {
-      "id": "b82d8939-5295-4c44-a98f-83df79623039",
-      "user_id": "default-user-12345",
-      "group_id": "f1bda500-0f96-4b3d-ae95-92dce3f71129",
-      "command": "run client () sql edgex info = (dest_type = rest) and extend=(+country, +city, @ip, @port, @dbms_name, @table_name) and format = json and timezone = utc  select  file, start_ts::ljust(19), end_ts::ljust(19), people_count, confidence from people_counter     where start_ts >= NOW() - 1 hour and end_ts <= NOW() order by people_count, confidence --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file)",
-      "type": "GET",
-      "button": "videos",
-      "created_at": "2025-09-02T12:03:47.072314"
-    },
-    {
-      "id": "4147aa10-acb0-465d-9706-8808ff46924e",
-      "user_id": "default-user-12345",
-      "group_id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "group_id": "feade93f-fdb6-4763-a1c2-7f845384c763",
       "command": "run client () sql opcua_demo format = table \"SELECT * FROM t1 LIMIT 20\"",
       "type": "GET",
       "button": "opcua",
-      "created_at": "2025-10-13T14:07:02.005761"
+      "created_at": "2025-10-23T08:33:36.066787"
     },
     {
-      "id": "73e27034-b477-414b-8702-2be049f5f948",
+      "id": "36267bf5-816c-41ba-85de-50e02d28315c",
       "user_id": "default-user-12345",
-      "group_id": "f1bda500-0f96-4b3d-ae95-92dce3f71129",
-      "command": "run client () sql edgex info = (dest_type = rest) and extend=(+country, +city, @ip, @port, @dbms_name, @table_name) and format = json and timezone = utc  select  file, start_ts::ljust(19), end_ts::ljust(19), people_count, confidence from people_counter     where start_ts >= NOW() - 1 hour and end_ts <= NOW() and file='24b9fa99c9e256e5335242b49ecfc334.mp4' order by people_count, confidence --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file)",
-      "type": "GET",
-      "button": "streaming",
-      "created_at": "2025-10-14T19:15:12.336723"
-    },
-    {
-      "id": "daed3ad7-9b54-46e8-b315-c1ec6daa83ff",
-      "user_id": "default-user-12345",
-      "group_id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "group_id": "feade93f-fdb6-4763-a1c2-7f845384c763",
       "command": "get processes",
       "type": "GET",
       "button": "getproc",
-      "created_at": "2025-10-16T13:21:14.579347"
+      "created_at": "2025-10-23T08:33:36.075730"
+    },
+    {
+      "id": "521c50c8-2386-4d0c-b33e-450031de9af1",
+      "user_id": "default-user-12345",
+      "group_id": "feade93f-fdb6-4763-a1c2-7f845384c763",
+      "command": "run client () sql opcua_demo format = table \"SELECT * FROM t1 LIMIT 5\"",
+      "type": "GET",
+      "button": "opcua5",
+      "created_at": "2025-10-23T08:33:36.079298"
+    },
+    {
+      "id": "bd6df628-34db-4d04-90c0-dff1577559ee",
+      "user_id": "default-user-12345",
+      "group_id": "feade93f-fdb6-4763-a1c2-7f845384c763",
+      "command": "run client () sql opcua_demo format = table \"SELECT * FROM t1 LIMIT 10\"",
+      "type": "GET",
+      "button": "opcua10",
+      "created_at": "2025-10-23T08:33:36.088490"
+    },
+    {
+      "id": "9ea3ecc3-e4d6-46f4-80fa-06360d64d22c",
+      "user_id": "default-user-12345",
+      "group_id": "5350cb9d-3165-457b-9737-c6a079ae3f8f",
+      "command": "run client () sql edgex extend=(+node_name, @ip, @port, @dbms_name, @table_name) and format = json and timezone=Europe/Dublin  select  timestamp, file, class, bbox, status  from factory_imgs where timestamp >= now() - 1 hour and timestamp <= NOW() order by timestamp desc --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file) -->  description (columns: bbox as shape.rect)",
+      "type": "GET",
+      "button": "images",
+      "created_at": "2025-10-23T08:33:36.104350"
+    },
+    {
+      "id": "cc3c4142-166f-498b-a345-e79f91bee52a",
+      "user_id": "default-user-12345",
+      "group_id": "5350cb9d-3165-457b-9737-c6a079ae3f8f",
+      "command": "run client () sql edgex info = (dest_type = rest) and extend=(+country, +city, @ip, @port, @dbms_name, @table_name) and format = json and timezone = utc  select  file, start_ts::ljust(19), end_ts::ljust(19), people_count, confidence from people_counter     where start_ts >= NOW() - 1 hour and end_ts <= NOW() order by people_count, confidence --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file)",
+      "type": "GET",
+      "button": "videos",
+      "created_at": "2025-10-23T08:33:36.110629"
+    },
+    {
+      "id": "07325f65-7c05-4d70-aeb2-cdd3ffad60b4",
+      "user_id": "default-user-12345",
+      "group_id": "5350cb9d-3165-457b-9737-c6a079ae3f8f",
+      "command": "run client () sql edgex info = (dest_type = rest) and extend=(+country, +city, @ip, @port, @dbms_name, @table_name) and format = json and timezone = utc  select  file, start_ts::ljust(19), end_ts::ljust(19), people_count, confidence from people_counter     where start_ts >= NOW() - 1 hour and end_ts <= NOW() and file='24b9fa99c9e256e5335242b49ecfc334.mp4' order by people_count, confidence --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file)",
+      "type": "GET",
+      "button": "streaming",
+      "created_at": "2025-10-23T08:33:36.114879"
+    },
+    {
+      "id": "eb10749f-1440-482c-a66a-cad8f3e78d7e",
+      "user_id": "default-user-12345",
+      "group_id": "b47d1aa6-ce51-48b2-93ab-2356bf9e694e",
+      "command": "get connections",
+      "type": "GET",
+      "button": "getconn",
+      "created_at": "2025-10-23T08:33:36.125227"
     }
   ]
 }

@@ -12,6 +12,7 @@ import Presets from './Presets';
 import Bookmarks from './Bookmarks';
 import SqlQueryGenerator from './SqlQueryGenerator';
 import BlockchainManager from './BlockchainManager';
+import StreamingDemo from './StreamingDemo';
 
 import PolicyGeneratorPage from './Security';
 // import Presets from './Presets';
@@ -131,6 +132,7 @@ const Dashboard = () => {
             <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />
             <Route path="blockchain" element={<BlockchainManager node = {selectedNode} />} />
             <Route path="security" element={<PolicyGeneratorPage node = {selectedNode} />} />
+            <Route path="streaming-demo" element={<StreamingDemo />} />
             {/* Default view */}
             <Route path="*" element={<Client node = {selectedNode}/>} />
           </Routes>
