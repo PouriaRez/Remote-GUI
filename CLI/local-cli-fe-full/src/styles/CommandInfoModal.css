@@ -89,6 +89,31 @@
   border-bottom: 2px solid #007bff;
   padding-bottom: 8px;
   display: inline-block;
+  position: relative;
+}
+
+.platform-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  background: #ffc107;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .command-display {
@@ -207,6 +232,36 @@
   color: #495057;
 }
 
+/* cURL Commands Container */
+.curl-commands-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.curl-command-item {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8f9fa;
+}
+
+.curl-command-item h4 {
+  margin: 0 0 12px 0;
+  color: #2c3e50;
+  font-size: 1rem;
+  font-weight: 600;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #dee2e6;
+  display: inline-block;
+}
+
+.curl-command-item .command-display {
+  background: white;
+  border: 1px solid #dee2e6;
+  margin-top: 8px;
+}
+
 .modal-footer {
   padding: 20px 24px;
   border-top: 1px solid #e9ecef;
@@ -274,5 +329,24 @@
   
   .info-row strong {
     min-width: auto;
+  }
+  
+  .curl-commands-container {
+    gap: 16px;
+  }
+  
+  .curl-command-item {
+    padding: 12px;
+  }
+  
+  .curl-command-item h4 {
+    font-size: 0.9rem;
+  }
+  
+  .platform-indicator {
+    display: block;
+    margin-left: 0;
+    margin-top: 4px;
+    font-size: 0.75rem;
   }
 }

@@ -4,7 +4,7 @@ import '../styles/CommandInfoModal.css';
 const CommandInfoModal = ({ isOpen, onClose, node, command, method }) => {
   if (!isOpen) return null;
 
-  // Generate the cURL command
+  // Generate the cURL command (regular)
   const generateCurlCommand = () => {
     const url = `http://${node}`;
     const headers = {
@@ -22,6 +22,39 @@ const CommandInfoModal = ({ isOpen, onClose, node, command, method }) => {
     return curlCommand;
   };
 
+  // Generate the Windows cURL command
+  const generateWindowsCurlCommand = () => {
+    const url = `http://${node}`;
+    const headers = {
+      'User-Agent': 'AnyLog/1.23',
+      'command': command
+    };
+
+    let curlCommand = `curl --location --request ${method} ${url}`;
+    
+    // Add headers with Windows-style quoting
+    Object.entries(headers).forEach(([key, value]) => {
+      // For Windows, we need to escape quotes differently
+      // Windows uses "" to escape quotes within double-quoted strings
+      const windowsValue = value.replace(/"/g, '""');
+      curlCommand += ` --header "${key}: ${windowsValue}"`;
+    });
+
+    return curlCommand;
+  };
+
+  // Check if the commands are different
+  const curlCommand = generateCurlCommand();
+  const windowsCurlCommand = generateWindowsCurlCommand();
+  const commandsAreDifferent = curlCommand !== windowsCurlCommand;
+  
+  // Debug logging to help understand when commands differ
+  if (commandsAreDifferent) {
+    console.log('Commands differ - showing both versions:');
+    console.log('Regular:', curlCommand);
+    console.log('Windows:', windowsCurlCommand);
+  }
+
   // Generate the QR code URL
   const generateQrUrl = () => {
     // Format: http://node/?User-Agent=AnyLog/1.23?into=html.text?command=command
@@ -34,7 +67,6 @@ const CommandInfoModal = ({ isOpen, onClose, node, command, method }) => {
     return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`;
   };
 
-  const curlCommand = generateCurlCommand();
   const qrUrl = generateQrUrl();
   const qrCodeUrl = generateQrCodeUrl();
 
@@ -78,17 +110,56 @@ const CommandInfoModal = ({ isOpen, onClose, node, command, method }) => {
           </div>
 
           <div className="info-section">
-            <h3>cURL Command</h3>
-            <div className="command-display">
-              <code>{curlCommand}</code>
-              <button 
-                className="copy-button"
-                onClick={() => copyToClipboard(curlCommand, 'cURL Command')}
-                title="Copy cURL command"
-              >
-                📋
-              </button>
-            </div>
+            <h3>
+              cURL Command{commandsAreDifferent ? 's' : ''}
+              {commandsAreDifferent && (
+                <span className="platform-indicator">
+                  <span className="indicator-dot"></span>
+                  Platform-specific commands
+                </span>
+              )}
+            </h3>
+            {commandsAreDifferent ? (
+              <div className="curl-commands-container">
+                <div className="curl-command-item">
+                  <h4>Linux/macOS</h4>
+                  <div className="command-display">
+                    <code>{curlCommand}</code>
+                    <button 
+                      className="copy-button"
+                      onClick={() => copyToClipboard(curlCommand, 'Linux/macOS cURL Command')}
+                      title="Copy Linux/macOS cURL command"
+                    >
+                      📋
+                    </button>
+                  </div>
+                </div>
+                <div className="curl-command-item">
+                  <h4>Windows</h4>
+                  <div className="command-display">
+                    <code>{windowsCurlCommand}</code>
+                    <button 
+                      className="copy-button"
+                      onClick={() => copyToClipboard(windowsCurlCommand, 'Windows cURL Command')}
+                      title="Copy Windows cURL command"
+                    >
+                      📋
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="command-display">
+                <code>{curlCommand}</code>
+                <button 
+                  className="copy-button"
+                  onClick={() => copyToClipboard(curlCommand, 'cURL Command')}
+                  title="Copy cURL command"
+                >
+                  📋
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="info-section">
