@@ -16,7 +16,5 @@
 - look into ideas of hwo tot improve gui and bookmarks
 
 
-
-
-- streaming on page iterate through the videos and stream the data
-- curl command - linux and windows
+- integration with langflow
+- how to make it so that a llm generatedreact component can be accepted by this for graphs

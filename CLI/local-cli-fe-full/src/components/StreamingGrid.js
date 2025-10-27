@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/StreamingGrid.css';
 
-const StreamingGrid = ({ videos = [], autoPlay = true, showControls = true, interval = 10000 }) => {
+const StreamingGrid = ({ videos = [], autoPlay = true, showControls = true }) => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(false);
@@ -26,20 +26,23 @@ const StreamingGrid = ({ videos = [], autoPlay = true, showControls = true, inte
 
   const currentVideo = videoFiles[currentVideoIndex];
 
-  // Auto-advance to next video
+  // Auto-advance to next video when current video ends
   useEffect(() => {
-    if (isPlaying && videoFiles.length > 1) {
-      intervalRef.current = setInterval(() => {
-        setCurrentVideoIndex(prev => (prev + 1) % videoFiles.length);
-      }, interval);
-    }
+    const currentVideoRef = videoRefs.current[currentVideoIndex];
+    if (!currentVideoRef) return;
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    const handleEnded = () => {
+      if (videoFiles.length > 1) {
+        setCurrentVideoIndex(prev => (prev + 1) % videoFiles.length);
       }
     };
-  }, [isPlaying, videoFiles.length, interval]);
+
+    currentVideoRef.addEventListener('ended', handleEnded);
+    
+    return () => {
+      currentVideoRef.removeEventListener('ended', handleEnded);
+    };
+  }, [videoFiles.length, currentVideoIndex]);
 
   // Handle video events for the current video
   useEffect(() => {
@@ -195,7 +198,7 @@ const StreamingGrid = ({ videos = [], autoPlay = true, showControls = true, inte
     >
       <div className="grid-header">
         <h3>Streaming Grid ({videoFiles.length} videos)</h3>
-        <p>Videos displayed side-by-side. Current video highlighted. Auto-advance every {interval/1000}s.</p>
+        <p>Videos displayed side-by-side. Current video highlighted.</p>
       </div>
 
       <div className="video-grid">

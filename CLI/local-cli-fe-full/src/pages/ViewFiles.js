@@ -154,7 +154,6 @@ const ViewFiles = () => {
             videos={videoBlobs}
             autoPlay={true}
             loop={true}
-            interval={10000} // 10 seconds between videos
           />
         </div>
       ) : isStreaming && gridMode && videoBlobs.length > 0 ? (
