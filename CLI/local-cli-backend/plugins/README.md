@@ -145,3 +145,12 @@ The system is now completely automatic:
 - **Error resilient**: Missing plugins show fallback components
 
 Total: **2 API endpoints** across **1 plugin** working automatically!
+
+
+
+# Process
+1. make folder for nodecheck
+2. make nodecheck_router.py
+3. write routes for nodecheck
+4. run refresh_frontend_apis.py to update the frontend
+

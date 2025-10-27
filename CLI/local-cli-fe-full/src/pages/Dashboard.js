@@ -146,7 +146,7 @@ const Dashboard = () => {
                 path={plugin.path} 
                 element={
                   <React.Suspense fallback={<div>Loading {plugin.name}...</div>}>
-                    <plugin.component />
+                    <plugin.component node={selectedNode} />
                   </React.Suspense>
                 } 
               />
