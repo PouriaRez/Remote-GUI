@@ -12,3 +12,10 @@ services:
     volumes:
       - image-vol:/app/CLI/local-cli-backend/static/
       - usr-mgm-vol:/app/CLI/local-cli/backend/usr-mgm/
+#      - cli-plugins-frontend:CLI/local-cli-fe-full/src/plugins/
+#      - cli-plugins-backend:CLI/local-cli-backend/plugins/
+volumes:
+  image-vol:
+  usr-mgm-vol:
+#  cli-plugins-frontend:
+#  cli-plugins-backend:
