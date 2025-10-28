@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { filterTableData, hasInternalColumns } from '../utils/tableUtils';
 import '../styles/MonitorTable.css'; 
 
 const MonitorTable = ({ data }) => {
@@ -14,14 +15,22 @@ const MonitorTable = ({ data }) => {
     value: ''
   });
   const [editingThreshold, setEditingThreshold] = useState(null);
+  
+  // State for showing/hiding internal columns
+  const [showInternalColumns, setShowInternalColumns] = useState(false);
+
+  // Check if data has internal columns
+  const hasInternal = useMemo(() => hasInternalColumns(data), [data]);
+
+  // Filter data based on internal column visibility
+  const { data: filteredData, headers } = useMemo(() => {
+    return filterTableData(data, showInternalColumns);
+  }, [data, showInternalColumns]);
 
   // If no data or empty array, render a message
   if (!data || data.length === 0) {
     return <div>No data available.</div>;
   }
-
-  // Get table headers from the keys of the first object
-  const headers = Object.keys(data[0]);
 
   // Save thresholds to localStorage whenever they change
   const saveThresholds = (newThresholds) => {
@@ -219,6 +228,27 @@ const MonitorTable = ({ data }) => {
         </div>
       )}
 
+      {/* Toggle button for internal columns (only show if internal columns exist) */}
+      {hasInternal && (
+        <div className="internal-columns-toggle" style={{ marginBottom: '10px' }}>
+          <button
+            className="toggle-internal-columns"
+            onClick={() => setShowInternalColumns(!showInternalColumns)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: showInternalColumns ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            {showInternalColumns ? 'Hide Internal Rows' : 'Show Internal Rows'}
+          </button>
+        </div>
+      )}
+
       {/* Data Table */}
       <table className="data-table">
         <thead>
@@ -229,7 +259,7 @@ const MonitorTable = ({ data }) => {
           </tr>
         </thead>
         <tbody>
-          {data.map((row, rowIndex) => (
+          {filteredData.map((row, rowIndex) => (
             <tr key={`row-${rowIndex}`}>
               {headers.map((header, cellIndex) => (
                 <td 

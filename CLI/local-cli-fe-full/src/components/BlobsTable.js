@@ -75,6 +75,7 @@
 
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { filterTableData, hasInternalColumns } from '../utils/tableUtils';
 import '../styles/DataTable.css'; 
 
 const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
@@ -101,14 +102,17 @@ const BlobsTable = ({
 
   // 1) Keep track of which row‐indexes are selected
   const [selectedIndexes, setSelectedIndexes] = useState([]);
+  
+  // State for showing/hiding internal columns
+  const [showInternalColumns, setShowInternalColumns] = useState(false);
 
-  // ✅ Always compute headers via a Hook (even if data is empty)
-  const headers = useMemo(() => {
-    if (Array.isArray(data) && data.length > 0 && data[0] && typeof data[0] === 'object') {
-      return Object.keys(data[0]);
-    }
-    return [];
-  }, [data]);
+  // Check if data has internal columns
+  const hasInternal = useMemo(() => hasInternalColumns(data), [data]);
+
+  // Filter data based on internal column visibility
+  const { data: filteredData, headers } = useMemo(() => {
+    return filterTableData(data, showInternalColumns);
+  }, [data, showInternalColumns]);
 
   // ✅ Hooks are unconditional
   const [colWidths, setColWidths] = useState(() => {
@@ -264,7 +268,7 @@ const BlobsTable = ({
   const tbody = React.createElement(
     'tbody',
     null,
-    (Array.isArray(data) ? data : []).map((row, rowIndex) =>
+    (Array.isArray(filteredData) ? filteredData : []).map((row, rowIndex) =>
       React.createElement(
         'tr',
         { key: `row-${rowIndex}` },
@@ -295,11 +299,38 @@ const BlobsTable = ({
   return React.createElement(
     'div',
     { className: 'data-table-wrapper' },
-    React.createElement(
-      'table',
-      { ref: tableRef, className: 'data-table' },
-      [colgroup, thead, tbody]
-    )
+    [
+      // Toggle button for internal columns (only show if internal columns exist)
+      hasInternal && React.createElement(
+        'div',
+        { key: 'toggle-container', className: 'internal-columns-toggle' },
+        React.createElement(
+          'button',
+          {
+            key: 'toggle-button',
+            className: 'toggle-internal-columns',
+            onClick: () => setShowInternalColumns(!showInternalColumns),
+            style: {
+              marginBottom: '10px',
+              padding: '8px 16px',
+              backgroundColor: showInternalColumns ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }
+          },
+          showInternalColumns ? 'Hide Internal Rows' : 'Show Internal Rows'
+        )
+      ),
+      // Table
+      React.createElement(
+        'table',
+        { key: 'table', ref: tableRef, className: 'data-table' },
+        [colgroup, thead, tbody]
+      )
+    ]
   );
 };
 

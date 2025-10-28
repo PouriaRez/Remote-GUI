@@ -1,29 +1,38 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
+import { filterTableData, hasInternalColumns } from '../utils/tableUtils';
 import '../styles/AnylogJsonTable.css';
 
 const AnylogJsonTable = ({ data, className = '' }) => {
+  // State for showing/hiding internal columns
+  const [showInternalColumns, setShowInternalColumns] = useState(false);
+
+  // Convert the nested object into rows and columns
+  const rows = useMemo(() => {
+    if (!data || typeof data !== 'object') {
+      return [];
+    }
+    return Object.entries(data).map(([serviceName, serviceData]) => ({
+      service: serviceName,
+      ...serviceData
+    }));
+  }, [data]);
+
+  // Check if data has internal columns
+  const hasInternal = useMemo(() => hasInternalColumns(rows), [rows]);
+
+  // Filter data based on internal column visibility
+  const { data: filteredRows, headers: columns } = useMemo(() => {
+    const result = filterTableData(rows, showInternalColumns);
+    return {
+      data: result.data,
+      headers: result.headers.filter(col => col !== 'service') // Remove 'service' from headers as it's handled separately
+    };
+  }, [rows, showInternalColumns]);
+
   // If no data, return empty state
   if (!data || typeof data !== 'object') {
     return <div className="anylog-table-empty">No data available</div>;
   }
-
-  // Convert the nested object into rows and columns
-  const rows = Object.entries(data).map(([serviceName, serviceData]) => ({
-    service: serviceName,
-    ...serviceData
-  }));
-
-  // Get all unique column names (excluding 'service')
-  const allColumns = new Set();
-  rows.forEach(row => {
-    Object.keys(row).forEach(key => {
-      if (key !== 'service') {
-        allColumns.add(key);
-      }
-    });
-  });
-
-  const columns = Array.from(allColumns);
 
   // Helper function to render cell content
   const renderCellContent = (value, columnName) => {
@@ -65,6 +74,27 @@ const AnylogJsonTable = ({ data, className = '' }) => {
 
   return (
     <div className={`anylog-table-wrapper ${className}`}>
+      {/* Toggle button for internal columns (only show if internal columns exist) */}
+      {hasInternal && (
+        <div className="internal-columns-toggle" style={{ marginBottom: '10px' }}>
+          <button
+            className="toggle-internal-columns"
+            onClick={() => setShowInternalColumns(!showInternalColumns)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: showInternalColumns ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            {showInternalColumns ? 'Hide Internal Rows' : 'Show Internal Rows'}
+          </button>
+        </div>
+      )}
+
       <table className="anylog-table">
         <thead>
           <tr>
@@ -77,7 +107,7 @@ const AnylogJsonTable = ({ data, className = '' }) => {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
+          {filteredRows.map((row, index) => (
             <tr key={index} className="anylog-table-row">
               <td className="anylog-table-cell service-cell">
                 <span className="service-name">{row.service}</span>
