@@ -1,9 +1,12 @@
+# (venv) ➜  Remote-GUI git:(bchain-optimz) ✗ uvicorn CLI.local-cli-backend.main:app --reload
 import os
 import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 sys.path.append(BASE_DIR)
+
+from security.security_router import security_router
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,9 +18,12 @@ from parsers import parse_response
 from classes import *
 from sql_router import sql_router
 from file_auth_router import file_auth_router
+# Import plugin loader
+from plugins.loader import load_plugins
+
+
 
 # from helpers import make_request, grab_network_nodes, monitor_network, make_policy, send_json_data
-import os
 from helpers import make_request, grab_network_nodes, monitor_network, make_policy, send_json_data, make_preset_policy
 import helpers
 
@@ -41,6 +47,11 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(sql_router)
 app.include_router(file_auth_router)
+app.include_router(security_router)
+
+# Load plugins
+load_plugins(app)
+
 # 23.239.12.151:32349
 # run client () sql edgex extend=(+node_name, @ip, @port, @dbms_name, @table_name) and format = json and timezone=Europe/Dublin  select  timestamp, file, class, bbox, status  from factory_imgs where timestamp >= now() - 1 hour and timestamp <= NOW() order by timestamp desc --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file) -->  description (columns: bbox as shape.rect)
 
@@ -74,12 +85,38 @@ def get_status():
 
 @app.post("/send-command/")
 def send_command(conn: Connection, command: Command):
-    raw_response = make_request(conn.conn, command.type, command.cmd)
-    print("raw_response", raw_response)
+    try:
+        raw_response = make_request(conn.conn, command.type, command.cmd.strip())
+        print("raw_response", raw_response)
 
-    structured_data = parse_response(raw_response)
-    print("structured_data", structured_data)
-    return structured_data
+        # Check if the response is already an error response
+        if isinstance(raw_response, dict) and raw_response.get("type") == "error":
+            print("=== ERROR RESPONSE DETECTED ===")
+            print(f"Full error response: {raw_response}")
+            return raw_response
+
+        structured_data = parse_response(raw_response)
+        print("structured_data", structured_data)
+        return structured_data
+    except Exception as e:
+        print(f"=== MAIN.PY ERROR ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Command: {command.cmd}")
+        print(f"Connection: {conn.conn}")
+        print(f"=== END MAIN.PY ERROR ===")
+        
+        return {
+            "type": "error",
+            "data": f"Backend error: {str(e)}",
+            "error_details": {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "command": command.cmd,
+                "connection": conn.conn,
+                "location": "main.py send_command"
+            }
+        }
 
 
 @app.post("/get-network-nodes/")
@@ -141,7 +178,90 @@ def get_preset_policy():
     return {"data": filtered_lb}
 
 
+def construct_streaming_url(blob, connectInfo):
+    """Construct streaming URL for a blob"""
+    # Use the blob's node IP and port, not the connected node
+    ip = blob.get('ip', '')
+    port = blob.get('port', '')
+    
+    # If blob doesn't have ip/port, fall back to connected node
+    if not ip or not port:
+        if isinstance(connectInfo, str):
+            # If connectInfo is a string like "23.239.12.151:32349", parse it
+            if ':' in connectInfo:
+                ip, port = connectInfo.split(':', 1)
+            else:
+                ip = connectInfo
+                port = '32349'  # default port
+        else:
+            # If connectInfo is a dict, extract ip and port
+            ip = connectInfo.get('ip', '')
+            port = connectInfo.get('port', '')
+    
+    # Extract blob details
+    dbms = blob.get('dbms_name', '')
+    table = blob.get('table_name', '')
+    blob_id = blob.get('file', '')  # Use 'file' instead of 'id' as blob_id
+    
+    # Construct the streaming URL using the blob's node
+    streaming_url = f"http://{ip}:{port}/?User-Agent=AnyLog/1.23?command=file retrieve where dbms={dbms} and table={table} and id={blob_id} and stream=true?cb="
+    
+    return streaming_url
 
+@app.post("/view-streaming/")
+def view_streaming_blobs(request: dict):
+    try:
+        print(f"=== STREAMING REQUEST ===")
+        print(f"Request type: {type(request)}")
+        print(f"Request keys: {request.keys() if isinstance(request, dict) else 'Not a dict'}")
+        print(f"Full request: {request}")
+        print(f"=== END STREAMING REQUEST ===")
+        
+        # Extract connection and blob information
+        connectInfo = request.get('connectInfo', {})
+        blobs = request.get('blobs', {}).get('blobs', [])
+        
+        print(f"ConnectInfo: {connectInfo} (type: {type(connectInfo)})")
+        print(f"Blobs: {blobs} (type: {type(blobs)}, length: {len(blobs) if isinstance(blobs, list) else 'N/A'})")
+        
+        # Construct streaming URLs for each blob
+        streaming_urls = []
+        for i, blob in enumerate(blobs):
+            print(f"Processing blob {i}: {blob}")
+            url = construct_streaming_url(blob, connectInfo)
+            streaming_urls.append({
+                'id': blob.get('file', ''),  # Use file as id
+                'file': blob.get('file', ''),
+                'streaming_url': url,
+                'dbms': blob.get('dbms_name', ''),
+                'table': blob.get('table_name', ''),
+                'ip': blob.get('ip', ''),
+                'port': blob.get('port', '')
+            })
+            print(f"Created streaming URL: {url}")
+        
+        print(f"Final streaming_urls: {streaming_urls}")
+        
+        return {
+            "type": "streaming_urls",
+            "data": streaming_urls
+        }
+    except Exception as e:
+        print(f"=== STREAMING ERROR ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Request: {request}")
+        print(f"=== END STREAMING ERROR ===")
+        
+        return {
+            "type": "error",
+            "data": f"Error constructing streaming URLs: {str(e)}",
+            "error_details": {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "request": str(request)
+            }
+        }
 
 
 @app.post("/view-blobs/")
@@ -173,6 +293,7 @@ def view_blobs(conn: Connection, blobs: dict):
 
         # cmd = f'run client ({ip_port}) file get !!blockchain_file !blockchain_file'
         # cmd = f'run client ({ip_port}) file get !!blobs_dir/{operator_file} !blobs_dir/{operator_file}'
+        
 
         cmd = f"run client ({ip_port}) file get (dbms = blobs_{operator_dbms} and table = {operator_table} and id = {operator_file}) {blobs_dir}{operator_dbms}.{operator_table}.{operator_file}"  # Add file full path and name for the destination on THIS MACHINE
         raw_response = make_request(conn.conn, "POST", cmd)

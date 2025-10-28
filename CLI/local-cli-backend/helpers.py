@@ -123,6 +123,7 @@ def make_request(conn, method, command, topic=None, destination=None, payload=No
     anylog_conn = anylog_connector.AnyLogConnector(conn=conn, auth=auth, timeout=timeout)
 
     blobs = False
+    streaming = False
 
 
     if command.startswith("run client () sql"):
@@ -136,6 +137,8 @@ def make_request(conn, method, command, topic=None, destination=None, payload=No
 
     if "file using file" in command:
         blobs = True
+        if "dest_type" in command:
+            streaming = True
 
     
 
@@ -164,11 +167,47 @@ def make_request(conn, method, command, topic=None, destination=None, payload=No
         print("response", response)
 
         if blobs:
+            if streaming:
+                return { 'streaming': response }
             return { 'blobs': response }
         return response  # Assuming response is text, change if needed
-    except requests.exceptions.RequestException as e:
-        print(f"Error making {method.upper()} request: {e}")
-        return None
+    except Exception as e:
+        print(f"=== FULL ERROR DETAILS ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Command: {command}")
+        print(f"Method: {method}")
+        print(f"Destination: {destination}")
+        print(f"Connection: {conn}")
+        
+        # Try to extract more details from the exception
+        if hasattr(e, '__dict__'):
+            print(f"Exception attributes: {e.__dict__}")
+        
+        # If it's a requests exception, try to get more details
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Response status: {e.response.status_code}")
+            print(f"Response headers: {dict(e.response.headers)}")
+            try:
+                print(f"Response text: {e.response.text}")
+            except:
+                print("Could not read response text")
+        
+        print(f"=== END ERROR DETAILS ===")
+        
+        # Return a structured error response instead of None
+        return {
+            "type": "error",
+            "data": f"Error executing command: {str(e)}",
+            "error_details": {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "command": command,
+                "method": method,
+                "destination": destination,
+                "connection": conn
+            }
+        }
 
 # blockchain delete policy where id = a29bcfd55cef20c6834f29fbb3aaf882 and master = 172.24.0.2:32048
 

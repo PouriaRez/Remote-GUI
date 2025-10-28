@@ -11,6 +11,7 @@ const NodePicker = ({ nodes, selectedNode, onAddNode, onSelectNode, onBookmarkAd
   const [error, setError] = useState(null);
   const [local, setLocal] = useState(false);
   const [bookmarkMsg, setBookmarkMsg] = useState(null);
+  const [showAddNode, setShowAddNode] = useState(false);
 
   useEffect(() => {
     if (!bookmarkMsg) return;
@@ -22,13 +23,13 @@ const NodePicker = ({ nodes, selectedNode, onAddNode, onSelectNode, onBookmarkAd
     return () => clearTimeout(timer);
   }, [bookmarkMsg]);
 
-
   const handleAdd = () => {
     // Basic validation: check that new node is not empty, and ideally matches "ip:port" format
     if (newNode.trim()) {
       onAddNode(newNode.trim());
       onSelectNode(newNode.trim());
       setNewNode('');
+      setShowAddNode(false);
     }
   };
 
@@ -48,7 +49,6 @@ const NodePicker = ({ nodes, selectedNode, onAddNode, onSelectNode, onBookmarkAd
       setError("Failed to test network.");
     }
   };
-
 
   const makeLocal = (node, isLocal) => {
     if (!node) return node;  // Return if node is empty
@@ -95,47 +95,98 @@ const NodePicker = ({ nodes, selectedNode, onAddNode, onSelectNode, onBookmarkAd
     }
   };
 
+  const handleDropdownChange = (e) => {
+    const value = e.target.value;
+    if (value === 'add-node') {
+      setShowAddNode(true);
+    } else {
+      onSelectNode(value);
+      setShowAddNode(false);
+    }
+  };
 
+  // If no node is selected, show connection input
+  if (!selectedNode) {
+    return (
+      <div className="node-picker-container">
+        <div className="connection-box">
+          <input
+            className="node-picker-input"
+            type="text"
+            placeholder="Enter Node Connection (IP:Port)"
+            value={newNode}
+            onChange={(e) => setNewNode(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+          />
+          <button className="node-picker-btn primary" onClick={handleAdd}>
+            Connect
+          </button>
+        </div>
+        {bookmarkMsg && (
+          <div className="bookmark-msg">
+            {bookmarkMsg}
+          </div>
+        )}
+        {error && (
+          <div className="error">
+            {error}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // If node is selected, show dropdown with "Add Node" option
   return (
     <div className="node-picker-container">
-      <select
-        className="node-picker-select"
-        value={selectedNode}
-        onChange={(e) => onSelectNode(e.target.value)}
-      >
-        {nodes.map((node, index) => (
-          <option key={index} value={node}>
-            {node}
-          </option>
-        ))}
-      </select>
-      <input
-        className="node-picker-input"
-        type="text"
-        placeholder="Connection (IP:Port)"
-        value={newNode}
-        onChange={(e) => setNewNode(e.target.value)}
-      />
-      <button className="node-picker-btn" onClick={handleAdd}>
-        Use
-      </button>
-      {/* <button className="node-picker-btn" onClick={handleAddConnectedNodes}>
-        Add Connected Nodes
-      </button> */}
-      <button className="node-picker-btn" onClick={handleBookmark}>
-        Bookmark
-      </button>
-      {/* <label className="local-label">
-        <input type="checkbox" checked={local} onChange={handleLocalChange} />
-        Local
-      </label> */}
+      <div className="connected-node-section">
+        <select
+          className="node-picker-select"
+          value={selectedNode}
+          onChange={handleDropdownChange}
+        >
+          {nodes.map((node, index) => (
+            <option key={index} value={node}>
+              {node}
+            </option>
+          ))}
+          <option value="add-node">+ Add New Node</option>
+        </select>
+        
+        <button className="node-picker-btn secondary" onClick={handleBookmark}>
+          Bookmark
+        </button>
+      </div>
+
+      {showAddNode && (
+        <div className="add-node-section">
+          <input
+            className="node-picker-input"
+            type="text"
+            placeholder="Enter New Node Connection (IP:Port)"
+            value={newNode}
+            onChange={(e) => setNewNode(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleAdd()}
+          />
+          <button className="node-picker-btn primary" onClick={handleAdd}>
+            Add & Connect
+          </button>
+          <button className="node-picker-btn cancel" onClick={() => {
+            setShowAddNode(false);
+            setNewNode('');
+          }}>
+            Cancel
+          </button>
+        </div>
+      )}
+
       {bookmarkMsg && (
-        <div className="bookmark-msg" style={{ color: 'red', marginTop: '0.5rem', marginBlockStart: '0.5rem' }}>
+        <div className="bookmark-msg">
           {bookmarkMsg}
         </div>
       )}
       {error && (
-        <div className="error" style={{ color: 'red', marginTop: '0.5rem' }}>
+        <div className="error">
           {error}
         </div>
       )}
@@ -145,4 +196,3 @@ const NodePicker = ({ nodes, selectedNode, onAddNode, onSelectNode, onBookmarkAd
 
 
 export default NodePicker;
-
