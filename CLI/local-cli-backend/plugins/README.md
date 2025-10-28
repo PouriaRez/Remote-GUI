@@ -153,4 +153,6 @@ Total: **2 API endpoints** across **1 plugin** working automatically!
 2. make nodecheck_router.py
 3. write routes for nodecheck
 4. run refresh_frontend_apis.py to update the frontend
+5. write the frontend page using the generated api functions
+
 
