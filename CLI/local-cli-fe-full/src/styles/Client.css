@@ -48,7 +48,8 @@
   }
 
   .paste-button,
-  .bookmark-button-small {
+  .bookmark-button-small,
+  .command-info-button {
     background: #6c757d;
     color: white;
     border: none;
@@ -60,13 +61,23 @@
   }
 
   .paste-button:hover,
-  .bookmark-button-small:hover:not(:disabled) {
+  .bookmark-button-small:hover:not(:disabled),
+  .command-info-button:hover:not(:disabled) {
     background: #5a6268;
   }
 
-  .bookmark-button-small:disabled {
+  .bookmark-button-small:disabled,
+  .command-info-button:disabled {
     background: #adb5bd;
     cursor: not-allowed;
+  }
+
+  .command-info-button {
+    background: #17a2b8;
+  }
+
+  .command-info-button:hover:not(:disabled) {
+    background: #138496;
   }
 
   .toggle-auth-button {

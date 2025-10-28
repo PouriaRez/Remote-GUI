@@ -66,7 +66,8 @@ function SecurityGroupsTable({ groups, selectedGroups, onChange }) {
         />
       </div>
 
-      <table className="permissions-table">
+      <div className="permissions-table-container">
+        <table className="permissions-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -121,7 +122,8 @@ function SecurityGroupsTable({ groups, selectedGroups, onChange }) {
             </tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

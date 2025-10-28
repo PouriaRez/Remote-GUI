@@ -122,7 +122,8 @@ function TableTable({ groups, selectedGroups, onChange }) {
         />
       </div>
 
-      <table className="permissions-table">
+      <div className="permissions-table-container">
+        <table className="permissions-table">
         <thead>
           <tr>
             <th>Table Name</th>
@@ -161,7 +162,8 @@ function TableTable({ groups, selectedGroups, onChange }) {
             </tr>
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

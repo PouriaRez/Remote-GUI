@@ -2,12 +2,18 @@ import React, { useState } from 'react';
 import '../styles/MonitorTable.css'; 
 
 const MonitorTable = ({ data }) => {
-  const [thresholds, setThresholds] = useState([]);
+  // Load thresholds from localStorage on component mount
+  const [thresholds, setThresholds] = useState(() => {
+    const saved = localStorage.getItem('monitor-thresholds');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
   const [newThreshold, setNewThreshold] = useState({
     column: '',
     operator: 'greater',
     value: ''
   });
+  const [editingThreshold, setEditingThreshold] = useState(null);
 
   // If no data or empty array, render a message
   if (!data || data.length === 0) {
@@ -16,6 +22,12 @@ const MonitorTable = ({ data }) => {
 
   // Get table headers from the keys of the first object
   const headers = Object.keys(data[0]);
+
+  // Save thresholds to localStorage whenever they change
+  const saveThresholds = (newThresholds) => {
+    setThresholds(newThresholds);
+    localStorage.setItem('monitor-thresholds', JSON.stringify(newThresholds));
+  };
 
   // Function to check if a cell value exceeds threshold
   const checkThreshold = (value, threshold) => {
@@ -40,17 +52,70 @@ const MonitorTable = ({ data }) => {
     }
   };
 
-  // Function to add a new threshold
+  // Function to add a new threshold or update existing one
   const addThreshold = () => {
     if (newThreshold.column && newThreshold.value) {
-      setThresholds([...thresholds, { ...newThreshold, id: Date.now() }]);
+      console.log("addThreshold called - editingThreshold:", editingThreshold);
+      console.log("newThreshold:", newThreshold);
+      
+      if (editingThreshold) {
+        // We're editing an existing threshold
+        console.log("Updating existing threshold with ID:", editingThreshold);
+        const updatedThresholds = thresholds.map(t => 
+          t.id === editingThreshold 
+            ? { ...newThreshold, id: editingThreshold }
+            : t
+        );
+        saveThresholds(updatedThresholds);
+        setEditingThreshold(null); // Exit edit mode
+        console.log("Threshold updated, exiting edit mode");
+      } else {
+        // Check if threshold for this column already exists (only when adding new)
+        const existingThreshold = thresholds.find(t => t.column === newThreshold.column);
+        console.log("Adding new threshold - existingThreshold:", existingThreshold);
+        
+        if (existingThreshold) {
+          // Update existing threshold by column
+          console.log("Updating existing threshold by column:", newThreshold.column);
+          const updatedThresholds = thresholds.map(t => 
+            t.column === newThreshold.column 
+              ? { ...newThreshold, id: existingThreshold.id }
+              : t
+          );
+          saveThresholds(updatedThresholds);
+        } else {
+          // Add new threshold
+          console.log("Adding completely new threshold");
+          saveThresholds([...thresholds, { ...newThreshold, id: Date.now() }]);
+        }
+      }
       setNewThreshold({ column: '', operator: 'greater', value: '' });
     }
   };
 
   // Function to remove a threshold
   const removeThreshold = (id) => {
-    setThresholds(thresholds.filter(t => t.id !== id));
+    const updatedThresholds = thresholds.filter(t => t.id !== id);
+    saveThresholds(updatedThresholds);
+  };
+
+  // Function to edit a threshold
+  const editThreshold = (threshold) => {
+    console.log("Editing threshold:", threshold);
+    setNewThreshold({
+      column: threshold.column,
+      operator: threshold.operator,
+      value: threshold.value
+    });
+    setEditingThreshold(threshold.id);
+    console.log("Set editing threshold ID:", threshold.id);
+  };
+
+  // Function to cancel editing
+  const cancelEdit = () => {
+    setNewThreshold({ column: '', operator: 'greater', value: '' });
+    setEditingThreshold(null);
+    console.log("Edit cancelled");
   };
 
   // Function to get cell styling based on thresholds
@@ -69,7 +134,7 @@ const MonitorTable = ({ data }) => {
     <div className="monitor-table-container">
       {/* Threshold Form */}
       <div className="threshold-form">
-        <h3>Add Threshold Monitor</h3>
+        <h3>{editingThreshold ? 'Edit Threshold Monitor' : 'Add Threshold Monitor'}</h3>
         <div className="form-row">
           <select
             value={newThreshold.column}
@@ -101,9 +166,27 @@ const MonitorTable = ({ data }) => {
           />
           
           <button onClick={addThreshold} className="add-threshold-btn">
-            Add Threshold
+            {editingThreshold ? 'Update Threshold' : 'Add Threshold'}
           </button>
+          
+          {editingThreshold && (
+            <button onClick={cancelEdit} className="cancel-edit-btn">
+              Cancel Edit
+            </button>
+          )}
         </div>
+        {editingThreshold && (
+          <div style={{ 
+            marginTop: '10px', 
+            padding: '10px', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffeaa7',
+            borderRadius: '4px',
+            fontSize: '14px'
+          }}>
+            <strong>Editing:</strong> You're currently editing a threshold. Changes will update the existing threshold instead of creating a new one.
+          </div>
+        )}
       </div>
 
       {/* Active Thresholds */}
@@ -114,12 +197,22 @@ const MonitorTable = ({ data }) => {
             {thresholds.map((threshold) => (
               <div key={threshold.id} className="threshold-item">
                 <span>{threshold.column} {threshold.operator} {threshold.value}</span>
-                <button 
-                  onClick={() => removeThreshold(threshold.id)}
-                  className="remove-threshold-btn"
-                >
-                  ×
-                </button>
+                <div className="threshold-actions">
+                  <button 
+                    onClick={() => editThreshold(threshold)}
+                    className="edit-threshold-btn"
+                    title="Edit threshold"
+                  >
+                    ✏️
+                  </button>
+                  <button 
+                    onClick={() => removeThreshold(threshold.id)}
+                    className="remove-threshold-btn"
+                    title="Remove threshold"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             ))}
           </div>

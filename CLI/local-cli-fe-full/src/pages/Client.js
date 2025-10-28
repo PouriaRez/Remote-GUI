@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../components/DataTable'; // Adjust path as needed
 import BlobsTable from '../components/BlobsTable'; // Adjust path as needed
+import CommandInfoModal from '../components/CommandInfoModal'; // Command info modal
 import { sendCommand, viewBlobs, viewStreamingBlobs, getBasePresetPolicy } from '../services/api'; // Adjust path as needed
 import { getPresetGroups, getPresetsByGroup, addPreset, addPresetGroup } from '../services/file_auth';
 import '../styles/Client.css'; // Optional: create client-specific CSS
@@ -37,6 +38,9 @@ const Client = ({ node }) => {
   const [bookmarkError, setBookmarkError] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  
+  // Command info modal state
+  const [showCommandInfoModal, setShowCommandInfoModal] = useState(false);
 
   useEffect(() => {
     console.log('Selected blobs:', selectedBlobs);
@@ -573,6 +577,15 @@ const Client = ({ node }) => {
               >
                 🔖 Bookmark
               </button>
+              <button 
+                type="button" 
+                className="command-info-button"
+                onClick={() => setShowCommandInfoModal(true)}
+                disabled={!command.trim() || !node}
+                title="Show command information (cURL, QR code)"
+              >
+                ℹ️ Command Info
+              </button>
             </div>
             <textarea
               rows={2}
@@ -780,6 +793,15 @@ const Client = ({ node }) => {
           </div>
         </div>
       )}
+
+      {/* Command Info Modal */}
+      <CommandInfoModal
+        isOpen={showCommandInfoModal}
+        onClose={() => setShowCommandInfoModal(false)}
+        node={node}
+        command={command}
+        method={method}
+      />
     </div>
   );
 };

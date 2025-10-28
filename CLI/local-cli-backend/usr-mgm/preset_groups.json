@@ -1,16 +1,22 @@
 {
   "preset_groups": [
     {
-      "id": "156f7e57-316d-417c-926d-8e3c8ae71277",
+      "id": "feade93f-fdb6-4763-a1c2-7f845384c763",
       "user_id": "default-user-12345",
       "group_name": "sql",
-      "created_at": "2025-09-02T09:56:44.745911"
+      "created_at": "2025-10-23T08:33:36.056664"
     },
     {
-      "id": "f1bda500-0f96-4b3d-ae95-92dce3f71129",
+      "id": "5350cb9d-3165-457b-9737-c6a079ae3f8f",
       "user_id": "default-user-12345",
       "group_name": "blobs",
-      "created_at": "2025-09-02T12:01:47.579176"
+      "created_at": "2025-10-23T08:33:36.096560"
+    },
+    {
+      "id": "b47d1aa6-ce51-48b2-93ab-2356bf9e694e",
+      "user_id": "default-user-12345",
+      "group_name": "tsc demo",
+      "created_at": "2025-10-23T08:33:36.119872"
     }
   ]
 }

@@ -474,6 +474,48 @@ button:disabled {
   font-size: 1rem;
 }
 
+/* Bookmark actions container */
+.bookmark-list li .bookmark-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-left: 1rem;
+  flex-shrink: 0;
+}
+
+/* Use Node button styling */
+.bookmark-list li .use-node-btn {
+  background: #28a745;
+  color: #fff;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  min-width: 100px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.bookmark-list li .use-node-btn:hover:not(:disabled) {
+  background: #218838;
+  transform: scale(1.02);
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.bookmark-list li .use-node-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 /* Delete button styling */
 .bookmark-list li .delete-btn {
   background: #fff;
@@ -482,19 +524,18 @@ button:disabled {
   font-size: 1rem;
   line-height: 1;
   padding: 0.5rem;
-  margin-left: 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: 6px;
   min-width: 40px;
-  height: 40px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.bookmark-list li .delete-btn:hover {
+.bookmark-list li .delete-btn:hover:not(:disabled) {
   background: #dc3545;
   color: #fff;
   transform: scale(1.05);

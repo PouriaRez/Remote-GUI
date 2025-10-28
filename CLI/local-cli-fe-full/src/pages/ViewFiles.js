@@ -3,6 +3,8 @@ import React, {useState} from 'react';
 // import { useParams }       from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import FileViewerAuto      from '../components/FileViewerAuto';
+import StreamingPlayer     from '../components/StreamingPlayer';
+import StreamingGrid       from '../components/StreamingGrid';
 import '../styles/ViewFiles.css';  // <-- import the new stylesheet
 
 const BACKEND_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
@@ -13,6 +15,8 @@ const ViewFiles = () => {
 
   // const { fileId } = useParams();
   const [expandedFile, setExpandedFile] = useState(null);
+  const [streamingMode, setStreamingMode] = useState(false);
+  const [gridMode, setGridMode] = useState(false);
 
   const location = useLocation();
   const { blobs, isStreaming, nodeInfo } = location.state || { }; // Use optional chaining to avoid errors if state is undefined
@@ -97,15 +101,72 @@ const ViewFiles = () => {
     }
   };
 
+  // Filter videos from blobs for streaming
+  const videoBlobs = Array.isArray(blobs) ? blobs.filter(blob => {
+    const url = blob.streaming_url || '';
+    return url && (url.includes('.mp4') || url.includes('.webm') || url.includes('.ogg') || url.includes('video'));
+  }) : [];
+
   return (
     <>
       {isStreaming && (
         <div className="streaming-notice">
           📡 <strong>Streaming Mode</strong> - Click "Open Stream" to view files directly from the node
+          {videoBlobs.length > 0 && (
+            <div className="streaming-mode-toggle">
+              <div className="toggle-buttons">
+                <button 
+                  className={`toggle-button ${!streamingMode && !gridMode ? 'active' : ''}`}
+                  onClick={() => {
+                    setStreamingMode(false);
+                    setGridMode(false);
+                  }}
+                >
+                  📋 List View
+                </button>
+                <button 
+                  className={`toggle-button ${streamingMode ? 'active' : ''}`}
+                  onClick={() => {
+                    setStreamingMode(true);
+                    setGridMode(false);
+                  }}
+                >
+                  🎬 Single Player
+                </button>
+                <button 
+                  className={`toggle-button ${gridMode ? 'active' : ''}`}
+                  onClick={() => {
+                    setStreamingMode(false);
+                    setGridMode(true);
+                  }}
+                >
+                  📺 Grid View
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
-      
-      <div className={isStreaming ? "streaming-grid" : "view-files-grid"}>
+
+      {isStreaming && streamingMode && videoBlobs.length > 0 ? (
+        <div className="embedded-streaming-container">
+          <StreamingPlayer 
+            videos={videoBlobs}
+            autoPlay={true}
+            loop={true}
+            interval={10000} // 10 seconds between videos
+          />
+        </div>
+      ) : isStreaming && gridMode && videoBlobs.length > 0 ? (
+        <div className="embedded-streaming-container">
+          <StreamingGrid 
+            videos={videoBlobs}
+            autoPlay={true}
+            showControls={true}
+          />
+        </div>
+      ) : (
+        <div className={isStreaming ? "streaming-grid" : "view-files-grid"}>
         {isStreaming ? (
           // Render streaming blobs
           Array.isArray(blobs) && blobs.length > 0 ? (
@@ -142,7 +203,8 @@ const ViewFiles = () => {
             </div>
           )
         )}
-      </div>
+        </div>
+      )}
 
       {expandedFile && !isStreaming && (
         <div className="modal-overlay" onClick={() => setExpandedFile(null)}>
