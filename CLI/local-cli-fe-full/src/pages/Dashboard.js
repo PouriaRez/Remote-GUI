@@ -12,7 +12,9 @@ import Presets from './Presets';
 import Bookmarks from './Bookmarks';
 import SqlQueryGenerator from './SqlQueryGenerator';
 import BlockchainManager from './BlockchainManager';
-import StreamingDemo from './StreamingDemo';
+
+// Import plugin loader
+import { getPluginPages } from '../plugins/loader';
 
 import PolicyGeneratorPage from './Security';
 // import Presets from './Presets';
@@ -20,7 +22,11 @@ import '../styles/Dashboard.css'; // dashboard-specific styles
 
 
 
+
 const Dashboard = () => {
+  // Load plugin pages
+  const pluginPages = getPluginPages();
+  
   // Load initial state from localStorage
   const [nodes, setNodes] = useState(() => {
     const savedNodes = localStorage.getItem('dashboard-nodes');
@@ -132,7 +138,21 @@ const Dashboard = () => {
             <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />
             <Route path="blockchain" element={<BlockchainManager node = {selectedNode} />} />
             <Route path="security" element={<PolicyGeneratorPage node = {selectedNode} />} />
-            <Route path="streaming-demo" element={<StreamingDemo />} />
+            
+            {/* Plugin Routes - Auto-loaded */}
+            {Object.entries(pluginPages).map(([key, plugin]) => (
+              <Route 
+                key={key}
+                path={plugin.path} 
+                element={
+                  <React.Suspense fallback={<div>Loading {plugin.name}...</div>}>
+                    <plugin.component node={selectedNode} />
+                  </React.Suspense>
+                } 
+              />
+            ))}
+            
+            
             {/* Default view */}
             <Route path="*" element={<Client node = {selectedNode}/>} />
           </Routes>

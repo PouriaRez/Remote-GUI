@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/StreamingPlayer.css';
 
-const StreamingPlayer = ({ videos = [], autoPlay = true, loop = true, interval = 5000 }) => {
+const StreamingPlayer = ({ videos = [], autoPlay = true, loop = true }) => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(false);
@@ -26,20 +26,23 @@ const StreamingPlayer = ({ videos = [], autoPlay = true, loop = true, interval =
 
   const currentVideo = videoFiles[currentVideoIndex];
 
-  // Auto-advance to next video
+  // Auto-advance to next video when current video ends
   useEffect(() => {
-    if (isPlaying && videoFiles.length > 1 && loop) {
-      intervalRef.current = setInterval(() => {
-        setCurrentVideoIndex(prev => (prev + 1) % videoFiles.length);
-      }, interval);
-    }
+    const video = videoRef.current;
+    if (!video) return;
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    const handleEnded = () => {
+      if (videoFiles.length > 1 && loop) {
+        setCurrentVideoIndex(prev => (prev + 1) % videoFiles.length);
       }
     };
-  }, [isPlaying, videoFiles.length, loop, interval]);
+
+    video.addEventListener('ended', handleEnded);
+    
+    return () => {
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [videoFiles.length, loop, currentVideoIndex]);
 
   // Handle video events
   useEffect(() => {
@@ -55,25 +58,17 @@ const StreamingPlayer = ({ videos = [], autoPlay = true, loop = true, interval =
       setProgress((video.currentTime / video.duration) * 100);
     };
 
-    const handleEnded = () => {
-      if (videoFiles.length > 1 && loop) {
-        setCurrentVideoIndex(prev => (prev + 1) % videoFiles.length);
-      }
-    };
-
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('ended', handleEnded);
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('ended', handleEnded);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
     };
