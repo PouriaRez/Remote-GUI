@@ -19,7 +19,29 @@ from classes import *
 from sql_router import sql_router
 from file_auth_router import file_auth_router
 # Import plugin loader
-from plugins.loader import load_plugins
+import sys
+import os
+# Add the plugins directory to the Python path
+plugins_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..', 'plugins')
+sys.path.insert(0, plugins_dir)
+
+try:
+    from loader import load_plugins
+    print("✅ Successfully imported loader")
+except ImportError as e:
+    print(f"❌ Failed to import loader: {e}")
+    def load_plugins(app):
+        print("⚠️ Plugin loading disabled due to import error")
+        return []
+
+try:
+    from plugin_management_router import api_router as plugin_management_router
+    print("✅ Successfully imported plugin management router")
+except ImportError as e:
+    print(f"❌ Failed to import plugin management router: {e}")
+    plugin_management_router = None
+
+print(f"✅ Plugin modules imported from: {plugins_dir}")
 
 
 
@@ -49,8 +71,27 @@ app.include_router(sql_router)
 app.include_router(file_auth_router)
 app.include_router(security_router)
 
+# Include plugin management router if available
+if plugin_management_router:
+    app.include_router(plugin_management_router)
+    print("✅ Plugin management router included")
+    print(f"Plugin management router prefix: {plugin_management_router.prefix}")
+    print(f"Plugin management routes: {[route.path for route in plugin_management_router.routes]}")
+else:
+    print("⚠️ Plugin management router not available")
+
 # Load plugins
-load_plugins(app)
+print("🔌 Starting plugin loading...")
+loaded_plugins = load_plugins(app)
+print(f"🔌 Loaded {len(loaded_plugins)} plugins: {loaded_plugins}")
+
+# Print all available routes for debugging
+print("\n📋 Available API routes:")
+for route in app.routes:
+    if hasattr(route, 'path') and hasattr(route, 'methods'):
+        print(f"  {route.methods} {route.path}")
+    elif hasattr(route, 'path'):
+        print(f"  {route.path}")
 
 # 23.239.12.151:32349
 # run client () sql edgex extend=(+node_name, @ip, @port, @dbms_name, @table_name) and format = json and timezone=Europe/Dublin  select  timestamp, file, class, bbox, status  from factory_imgs where timestamp >= now() - 1 hour and timestamp <= NOW() order by timestamp desc --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file) -->  description (columns: bbox as shape.rect)

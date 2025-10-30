@@ -1,12 +1,10 @@
 // src/components/Sidebar.js
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { getPluginSidebarItems } from '../plugins/loader';
 import '../styles/Sidebar.css';
 
-const Sidebar = () => {
-  // Get plugin sidebar items
-  const pluginItems = getPluginSidebarItems();
+const Sidebar = ({ pluginItems = [] }) => {
+  // Plugin items are passed from Dashboard
   
   return (
     <nav className="sidebar">
@@ -20,8 +18,9 @@ const Sidebar = () => {
       <NavLink to="presets" className={({ isActive }) => isActive ? 'active' : ''}>Presets</NavLink>
       <NavLink to="bookmarks" className={({ isActive }) => isActive ? 'active' : ''}>Bookmarks</NavLink>
       <NavLink to="security" className={({ isActive }) => isActive ? 'active' : ''}>Security (Anylog)</NavLink>
+      <NavLink to="plugins" className={({ isActive }) => isActive ? 'active' : ''}>🔌 Plugins</NavLink>
       
-      {/* Plugin Navigation - Auto-loaded */}
+      {/* External Plugin Navigation */}
       {pluginItems.length > 0 && (
         <div className="plugin-section">
           {pluginItems.map((plugin) => (

@@ -1,0 +1,25 @@
+{
+  "global_settings": {
+    "auto_discover": true,
+    "lazy_load": true,
+    "max_plugins": 100,
+    "plugin_timeout": 30
+  },
+  "enabled_plugins": [
+    "calculator"
+  ],
+  "disabled_plugins": [
+    "example_plugin",
+    "nodecheck"
+  ],
+  "plugin_categories": {
+    "utility": "\ud83d\udd27",
+    "data": "\ud83d\udcca",
+    "network": "\ud83c\udf10",
+    "security": "\ud83d\udd12",
+    "visualization": "\ud83d\udcc8",
+    "integration": "\ud83d\udd17"
+  },
+  "last_scan": "2025-10-29T15:08:27.032138",
+  "version": "1.0.0"
+}

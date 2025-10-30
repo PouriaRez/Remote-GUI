@@ -9,7 +9,7 @@ import os
 from typing import Dict, Any
 
 # Add the backend directory to the path for imports
-backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+backend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'CLI', 'local-cli-backend')
 if backend_dir not in sys.path:
     sys.path.append(backend_dir)
 

@@ -1,0 +1,28 @@
+{
+  "name": "example_plugin",
+  "version": "1.0.0",
+  "description": "A comprehensive example plugin demonstrating the external plugin system",
+  "author": "Plugin Developer",
+  "category": "utility",
+  "tags": ["example", "demo", "template"],
+  "dependencies": [],
+  "requirements": {
+    "python": ">=3.8",
+    "fastapi": ">=0.68.0"
+  },
+  "api_prefix": "/example",
+  "frontend_route": "example",
+  "enabled": true,
+  "files": {
+    "backend": "backend/plugin_router.py",
+    "frontend": "frontend/ExamplePage.js",
+    "manifest": "plugin_manifest.json"
+  },
+  "permissions": {
+    "read": true,
+    "write": false,
+    "network": false
+  },
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}

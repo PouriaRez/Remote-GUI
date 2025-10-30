@@ -1,0 +1,28 @@
+{
+  "name": "nodecheck",
+  "version": "1.0.0",
+  "description": "Node health monitoring and status checking plugin",
+  "author": "Plugin Developer",
+  "category": "network",
+  "tags": ["node", "monitoring", "health", "network"],
+  "dependencies": [],
+  "requirements": {
+    "python": ">=3.8",
+    "fastapi": ">=0.68.0"
+  },
+  "api_prefix": "/nodecheck",
+  "frontend_route": "nodecheck",
+  "enabled": true,
+  "files": {
+    "backend": "backend/plugin_router.py",
+    "frontend": "frontend/NodecheckPage.js",
+    "manifest": "plugin_manifest.json"
+  },
+  "permissions": {
+    "read": true,
+    "write": false,
+    "network": true
+  },
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}

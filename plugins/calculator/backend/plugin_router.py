@@ -1,5 +1,5 @@
-# Example Plugin - Simple Calculator
-# This demonstrates how easy it is to create a plugin
+# Calculator Plugin - Migrated to External Plugin System
+# Simple calculator with basic arithmetic operations
 
 from fastapi import APIRouter
 from pydantic import BaseModel

@@ -1,0 +1,28 @@
+{
+  "name": "calculator",
+  "version": "1.0.0",
+  "description": "Simple calculator plugin with basic arithmetic operations",
+  "author": "Plugin Developer",
+  "category": "utility",
+  "tags": ["calculator", "math", "arithmetic"],
+  "dependencies": [],
+  "requirements": {
+    "python": ">=3.8",
+    "fastapi": ">=0.68.0"
+  },
+  "api_prefix": "/calculator",
+  "frontend_route": "calculator",
+  "enabled": true,
+  "files": {
+    "backend": "backend/plugin_router.py",
+    "frontend": "frontend/CalculatorPage.js",
+    "manifest": "plugin_manifest.json"
+  },
+  "permissions": {
+    "read": true,
+    "write": false,
+    "network": false
+  },
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z"
+}

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { calculate } from './calculator_api';
 
-const CalculatorPage = () => {
+// Get API URL from environment or default to localhost:8000
+const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
+
+const CalculatorPage = ({ node }) => {
   const [operation, setOperation] = useState('add');
   const [a, setA] = useState('');
   const [b, setB] = useState('');
@@ -36,11 +38,23 @@ const CalculatorPage = () => {
     setLoading(true);
     setResult(null);
     try {
-      const data = await calculate({
-        operation,
-        a: numA,
-        b: numB
+      const response = await fetch(`${API_URL}/calculator/calculate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation,
+          a: numA,
+          b: numB
+        })
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
       setResult(data);
     } catch (error) {
       console.error('Calculation error:', error);
@@ -53,7 +67,7 @@ const CalculatorPage = () => {
   return (
     <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
       <h1>🧮 Calculator Plugin</h1>
-      <p>Simple calculator plugin demonstrating the automatic plugin system!</p>
+      <p>Simple calculator plugin demonstrating the external plugin system!</p>
       
       {/* Calculator Form */}
       <div style={{ 

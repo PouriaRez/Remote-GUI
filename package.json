@@ -1,0 +1,20 @@
+{
+  "name": "anylog-remote-gui",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "CLI/local-cli-fe-full",
+    "plugins/*"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:plugins",
+    "install:plugins": "npm install --workspace=plugins/calculator && npm install --workspace=plugins/nodecheck && npm install --workspace=plugins/example-plugin",
+    "build:plugins": "npm run build --workspace=plugins/calculator && npm run build --workspace=plugins/nodecheck && npm run build --workspace=plugins/example-plugin",
+    "dev": "npm run dev --workspace=CLI/local-cli-fe-full",
+    "build": "npm run build:plugins && npm run build --workspace=CLI/local-cli-fe-full"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsup": "^7.0.0"
+  }
+}
