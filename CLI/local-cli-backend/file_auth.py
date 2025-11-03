@@ -261,7 +261,8 @@ def file_bookmark_node(node: str) -> Dict:
         "id": str(uuid.uuid4()),
         "node": {"conn": node},
         "description": "",
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
+        "is_default": False
     }
     
     bookmarks_data["bookmarks"].append(new_bookmark)
@@ -280,7 +281,8 @@ def file_get_bookmarked_nodes() -> List[Dict]:
                 "user_id": DEFAULT_USER_ID,
                 "node": bookmark.get("node", {}).get("conn", ""),
                 "description": bookmark.get("description", ""),
-                "created_at": bookmark.get("created_at", "")
+                "created_at": bookmark.get("created_at", ""),
+                "is_default": bookmark.get("is_default", False)
             })
     
     return user_bookmarks
@@ -317,6 +319,28 @@ def file_update_bookmark_description(node: str, description: str) -> Dict:
                 return {"message": "Bookmark updated successfully"}
     
     return {"error": "Bookmark not found"}
+
+def file_set_default_bookmark(node: str) -> Dict:
+    """Set a single bookmark as default and unset others"""
+    bookmarks_data = load_json_file(BOOKMARKS_FILE)
+    if "bookmarks" not in bookmarks_data:
+        bookmarks_data["bookmarks"] = []
+
+    found = False
+    for bookmark in bookmarks_data["bookmarks"]:
+        if bookmark.get("node", {}).get("conn") == node:
+            bookmark["is_default"] = True
+            found = True
+        else:
+            # ensure others are not default
+            if "is_default" in bookmark and bookmark["is_default"]:
+                bookmark["is_default"] = False
+
+    if not found:
+        return {"error": "Bookmark not found"}
+
+    save_json_file(BOOKMARKS_FILE, bookmarks_data)
+    return {"message": "Default bookmark set", "node": node}
 
 def file_add_preset_group(group_name: str) -> Dict:
     """Add a preset group for the default user"""

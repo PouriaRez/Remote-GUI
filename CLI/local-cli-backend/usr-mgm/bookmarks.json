@@ -6,7 +6,8 @@
         "conn": "23.239.12.151:32349"
       },
       "description": "main node for demo",
-      "created_at": "2025-09-01T15:08:45.040155"
+      "created_at": "2025-09-01T15:08:45.040155",
+      "is_default": true
     },
     {
       "id": "573765e1-2079-42b0-8ba7-f1dbcb6cc556",
@@ -14,7 +15,8 @@
         "conn": "74.63.139.253:32349"
       },
       "description": "this machines node",
-      "created_at": "2025-09-10T12:05:09.070311"
+      "created_at": "2025-09-10T12:05:09.070311",
+      "is_default": false
     },
     {
       "id": "60ab43b9-5af5-409c-a545-288eba655411",

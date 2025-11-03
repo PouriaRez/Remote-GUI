@@ -188,6 +188,34 @@ export async function updateBookmarkDescription({ node, description }) {
     }
 }
 
+export async function setDefaultBookmark({ node }) {
+    if (!node) {
+        throw new Error('Missing node parameter');
+    }
+
+    try {
+        const requestBody = { conn: { conn: node } };
+
+        const response = await fetch(`${API_URL}/auth/set-default-bookmark/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server responded with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error setting default bookmark:', error);
+        throw error;
+    }
+}
+
 // Preset group functions (simplified - no authentication required)
 export async function addPresetGroup({ name }) {
     if (!name) {
