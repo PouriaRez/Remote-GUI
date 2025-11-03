@@ -19,6 +19,7 @@ import { getPluginPages } from '../plugins/loader';
 import PolicyGeneratorPage from './Security';
 // import Presets from './Presets';
 import '../styles/Dashboard.css'; // dashboard-specific styles
+import { getBookmarks } from '../services/file_auth';
 
 
 
@@ -81,6 +82,29 @@ const Dashboard = () => {
       }, 3000);
       return () => clearTimeout(timer);
     }
+  }, []);
+
+  // On first load, if no selected node, use default bookmark if present
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!selectedNode) {
+          const res = await getBookmarks();
+          const list = Array.isArray(res.data) ? res.data : [];
+          const def = list.find(b => b.is_default);
+          if (def && def.node) {
+            setSelectedNode(def.node);
+            if (!nodes.includes(def.node)) {
+              setNodes(prev => [...prev, def.node]);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore failures silently
+      }
+    })();
+    // run only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Utility function to clear all stored data

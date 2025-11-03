@@ -37,6 +37,13 @@ def update_bookmark_description(request: BookmarkUpdateRequest):
     response = file_auth.file_update_bookmark_description(request.node, request.description)
     return {"data": response}
 
+@file_auth_router.post("/set-default-bookmark/")
+def set_default_bookmark(conn: Dict):
+    """Set a bookmark as default for the default user"""
+    node = conn.get("conn", {}).get("conn")
+    response = file_auth.file_set_default_bookmark(node)
+    return {"data": response}
+
 @file_auth_router.post("/add-preset-group/")
 def add_preset_group(request: Dict):
     """Add a preset group for the default user"""
