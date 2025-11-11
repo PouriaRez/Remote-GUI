@@ -244,22 +244,28 @@ const SqlQueryGenerator = ({ node }) => {
     }
     
     // Build the SELECT clause with columns and aggregations
-    let selectClause = '';
+    const selectParts = [];
+    const aggregationParts = [];
+    const plainSelectColumns = new Set();
     
     // Add increments function if enabled
     if (hasIncrements) {
-      selectClause += `increments(${incrementsUnit}, ${incrementsInterval}, ${incrementsDateColumn}), `;
+      selectParts.push(`increments(${incrementsUnit}, ${incrementsInterval}, ${incrementsDateColumn})`);
       // Add min and max of the date column automatically
-      selectClause += `min(${incrementsDateColumn}), max(${incrementsDateColumn})`;
+      selectParts.push(`min(${incrementsDateColumn})`);
+      selectParts.push(`max(${incrementsDateColumn})`);
     }
     
     // Add selected columns (in columns mode or mixed mode)
     if (columnMode === 'columns' || columnMode === 'mixed') {
       if (selectedColumns.length > 0) {
-        if (selectClause.length > 0) {
-          selectClause += ', ';
-        }
-        selectClause += selectedColumns.join(', ');
+        selectedColumns.forEach(column => {
+          const trimmedColumn = column.trim();
+          if (trimmedColumn.length > 0) {
+            selectParts.push(trimmedColumn);
+            plainSelectColumns.add(trimmedColumn);
+          }
+        });
       }
     }
     
@@ -269,13 +275,8 @@ const SqlQueryGenerator = ({ node }) => {
         if (agg.function) {
           // Handle special functions like count(*)
           if (agg.isSpecialFunction && agg.column === '*') {
-            // Add comma if there are previous columns
-            if (selectClause.length > 0) {
-              selectClause += ', ';
-            }
-            
             const alias = agg.alias || `${agg.function.toLowerCase()}_all`;
-            selectClause += `${agg.function}(*) as ${alias}`;
+            aggregationParts.push(`${agg.function}(*) as ${alias}`);
             return;
           }
           
@@ -290,18 +291,39 @@ const SqlQueryGenerator = ({ node }) => {
               return; // Skip invalid aggregations
             }
             
-            // Add comma if there are previous columns
-            if (selectClause.length > 0) {
-              selectClause += ', ';
-            }
-            
             const alias = agg.alias || `${agg.function.toLowerCase()}_${agg.column}`;
-            selectClause += `${agg.function}(${agg.column}) as ${alias}`;
+            aggregationParts.push(`${agg.function}(${agg.column}) as ${alias}`);
           }
         }
       });
     }
     
+    // Ensure GROUP BY columns appear in the SELECT clause
+    let orderedSelectParts = [...selectParts];
+
+    if (groupByColumns.length > 0) {
+      const groupColumnsInSelect = [];
+
+      groupByColumns
+        .map(column => column.trim())
+        .filter(column => column.length > 0)
+        .forEach(column => {
+          if (!plainSelectColumns.has(column)) {
+            orderedSelectParts.push(column);
+            plainSelectColumns.add(column);
+          }
+          if (!groupColumnsInSelect.includes(column)) {
+            groupColumnsInSelect.push(column);
+          }
+        });
+
+      orderedSelectParts = [
+        ...groupColumnsInSelect,
+        ...orderedSelectParts.filter(column => !groupColumnsInSelect.includes(column)),
+      ];
+    }
+
+    const selectClause = [...orderedSelectParts, ...aggregationParts].join(', ');
     anylogQuery += selectClause;
     
     // Add FROM clause
@@ -1882,4 +1904,4 @@ const SqlQueryGenerator = ({ node }) => {
   );
 };
 
-export default SqlQueryGenerator; 
+export default SqlQueryGenerator;
