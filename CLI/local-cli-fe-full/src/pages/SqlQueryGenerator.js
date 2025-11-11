@@ -299,6 +299,10 @@ const SqlQueryGenerator = ({ node }) => {
     }
     
     // Ensure GROUP BY columns appear in the SELECT clause
+
+    // Made it so that the group by columns appear in the SELECT clause first for organizational purposes
+    // went with this option as opposed to update the options for GROUP BY to contain only non-aggregation columns.
+    // This is so that in the case that a User that is less familiar with the group by requirements can select a column and it will work properly
     let orderedSelectParts = [...selectParts];
 
     if (groupByColumns.length > 0) {
