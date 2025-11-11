@@ -371,9 +371,9 @@ const SqlQueryGenerator = ({ node }) => {
     
     // Add GROUP BY clause
     if (groupByColumns.length > 0) {
-      anylogQuery += ` and GROUP BY ${groupByColumns.join(', ')}`;
+      anylogQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
     } else if (groupBy.trim()) {
-      anylogQuery += ` and GROUP BY ${groupBy}`;
+      anylogQuery += ` GROUP BY ${groupBy}`;
     }
     
     // Add ORDER BY clause
