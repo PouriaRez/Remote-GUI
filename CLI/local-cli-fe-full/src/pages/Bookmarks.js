@@ -4,7 +4,8 @@ import {
   getBookmarks,
   bookmarkNode,
   deleteBookmarkedNode,
-  updateBookmarkDescription
+  updateBookmarkDescription,
+  setDefaultBookmark
 } from "../services/file_auth";
 import "../styles/Bookmarks.css";
 
@@ -149,6 +150,21 @@ const Bookmarks = ({ node, onSelectNode }) => {
       setSuccessMsg("Bookmark description updated");
     } catch (error) {
       setError("Failed to update bookmark description");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetDefault = async (node) => {
+    setLoading(true);
+    try {
+      await setDefaultBookmark({ node });
+      // reload to reflect updated flags
+      await loadBookmarks();
+      setSuccessMsg(`Set ${node} as default`);
+      setError("");
+    } catch (error) {
+      setError("Failed to set default bookmark");
     } finally {
       setLoading(false);
     }
@@ -380,6 +396,19 @@ const Bookmarks = ({ node, onSelectNode }) => {
                 <div className="bookmark-content">
                   <div className="bookmark-header">
                     <span className="bookmark-node">{bookmark.node}</span>
+                    {bookmark.is_default && (
+                      <span className="default-badge" style={{
+                        marginLeft: '0.5rem',
+                        backgroundColor: '#ffd54f',
+                        color: '#000',
+                        borderRadius: '4px',
+                        padding: '2px 6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 600
+                      }}>
+                        Default
+                      </span>
+                    )}
                     <span className="bookmark-date">
                       {new Date(bookmark.created_at).toLocaleDateString()}
                     </span>
@@ -434,6 +463,14 @@ const Bookmarks = ({ node, onSelectNode }) => {
                   </div>
                 </div>
                 <div className="bookmark-actions">
+                  <button
+                    className="use-node-btn"
+                    disabled={loading || bookmark.is_default}
+                    onClick={() => handleSetDefault(bookmark.node)}
+                    title={bookmark.is_default ? "Already default" : "Set as default"}
+                  >
+                    {bookmark.is_default ? '⭐ Default' : 'Set as default'}
+                  </button>
                   <button
                     className="use-node-btn"
                     disabled={loading}
