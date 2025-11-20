@@ -3,6 +3,14 @@ import { getDatabases, getTables, getColumns, sendCommand } from '../services/ap
 import DataTable from '../components/DataTable';
 import '../styles/SqlQueryGenerator.css';
 
+const createDefaultTimeFilter = () => ({
+  id: `default-time-filter-${Date.now()}`,
+  column: 'insert_timestamp',
+  operator: '>=',
+  value: 'NOW() - 1 hour',
+  logicalOperator: 'AND',
+});
+
 // run client () sql opcua_demo format = table "SELECT min(value), max(value), avg(value) FROM t11 WHERE period(hour, 3, now(), timestamp)"
 // implement:
 // periods
@@ -24,7 +32,7 @@ const SqlQueryGenerator = ({ node }) => {
   const [error, setError] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [whereClause, setWhereClause] = useState('');
-  const [whereConditions, setWhereConditions] = useState([]);
+  const [whereConditions, setWhereConditions] = useState([createDefaultTimeFilter()]);
   const [periods, setPeriods] = useState([]);
   const [groupBy, setGroupBy] = useState('');
   const [groupByColumns, setGroupByColumns] = useState([]);
@@ -678,7 +686,7 @@ const SqlQueryGenerator = ({ node }) => {
     setSelectedColumns([]);
     setQuery('');
     setWhereClause('');
-    setWhereConditions([]);
+    setWhereConditions([createDefaultTimeFilter()]);
     setPeriods([]);
     setGroupBy('');
     setGroupByColumns([]);
@@ -931,6 +939,9 @@ const SqlQueryGenerator = ({ node }) => {
     ];
     setExtendFields(defaultFields);
   };
+
+  const columnNamesLower = columns.map(col => (col.column_name || col.name || '').toLowerCase());
+  const hasInsertTimestampColumn = columnNamesLower.includes('insert_timestamp');
 
   return (
     <div className="sql-query-generator">
@@ -1489,6 +1500,9 @@ const SqlQueryGenerator = ({ node }) => {
                         onChange={(e) => updateWhereCondition(condition.id, 'column', e.target.value)}
                       >
                         <option value="">Select Column</option>
+                        {!hasInsertTimestampColumn && (
+                          <option value="insert_timestamp">insert_timestamp</option>
+                        )}
                         {columns.map(col => (
                           <option key={col.column_name || col.name} value={col.column_name || col.name}>
                             {col.column_name || col.name} ({col.data_type || col.type})
