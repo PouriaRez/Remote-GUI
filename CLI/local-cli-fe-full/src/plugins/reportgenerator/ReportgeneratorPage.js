@@ -3,6 +3,12 @@ import { getDatabases } from '../../services/api';
 import { listMonitorIds } from './reportgenerator_api';
 import '../../styles/ReportgeneratorPage.css';
 
+// Plugin metadata - used by the plugin loader
+export const pluginMetadata = {
+  name: 'Report Generator',
+  icon: null // Optional: add an icon emoji here if desired
+};
+
 const ReportgeneratorPage = ({ node }) => {
   const [databases, setDatabases] = useState([]);
   const [selectedDbms, setSelectedDbms] = useState('');
