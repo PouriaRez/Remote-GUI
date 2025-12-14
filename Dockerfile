@@ -63,7 +63,7 @@ RUN chmod +x /app/start.sh
 # =====================
 # Final minimal runtime image
 # =====================
-FROM python:3.11-slim AS final
+FROM python:3.14-slim AS final
 WORKDIR /app
 
 ENV VIRTUAL_ENV=/opt/venv
