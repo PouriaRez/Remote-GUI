@@ -27,6 +27,8 @@ const ReportgeneratorPage = ({ node }) => {
   const [loadingMonitorIds, setLoadingMonitorIds] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfFilename, setPdfFilename] = useState(null);
 
   // Fetch databases on component mount
   useEffect(() => {
@@ -74,6 +76,26 @@ const ReportgeneratorPage = ({ node }) => {
       setEndTime(formatDateForInput(now));
     }
   }, []);
+
+  // Cleanup blob URL when component unmounts or PDF changes
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        window.URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
+  const handleDownload = () => {
+    if (pdfUrl && pdfFilename) {
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = pdfFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   const fetchDatabases = async () => {
     if (!node) return;
@@ -184,17 +206,14 @@ const ReportgeneratorPage = ({ node }) => {
       // Get the PDF blob
       const blob = await response.blob();
       
-      // Create a download link
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `power_monitoring_report_${new Date().getTime()}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      // Create a blob URL for viewing in browser
+      const blobUrl = window.URL.createObjectURL(blob);
+      const filename = `power_monitoring_report_${new Date().getTime()}.pdf`;
       
-      setSuccess('Report generated and downloaded successfully!');
+      // Store the PDF URL and filename for display
+      setPdfUrl(blobUrl);
+      setPdfFilename(filename);
+      setSuccess('Report generated successfully! View it below or download using the button.');
     } catch (err) {
       setError(err.message || 'Failed to generate report');
     } finally {
@@ -363,6 +382,28 @@ const ReportgeneratorPage = ({ node }) => {
           </div>
         )}
       </div>
+
+      {/* PDF Viewer Section */}
+      {pdfUrl && (
+        <div className="pdf-viewer-section">
+          <div className="pdf-viewer-header">
+            <h3>Generated Report</h3>
+            <button
+              className="download-button"
+              onClick={handleDownload}
+            >
+              📥 Download PDF
+            </button>
+          </div>
+          <div className="pdf-viewer-container">
+            <iframe
+              src={pdfUrl}
+              title="Generated Report"
+              className="pdf-iframe"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

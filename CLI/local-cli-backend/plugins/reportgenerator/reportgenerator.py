@@ -28,7 +28,6 @@ from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib import colors
-from reportlab.rl_settings import pdfComments
 
 
 def _get_data(conn: str, command: str, destination: str = None):
@@ -83,11 +82,10 @@ def check_data(conn: str, dbms: str):
 def get_monitor_ids(conn: str, dbms: str):
     output = []
     query = "SELECT distinct(monitor_id) AS monitor_id FROM pp_pm WHERE period(hour, 1, now(), timestamp)"
-    command = f"sql {dbms} format=json:list and stat=false {query}"
+    command = f"sql {dbms} format=json and stat=false {query}"
     response = _get_data(conn=conn, command=command, destination="network")
-
     try:
-        for monitor_id in response.json():
+        for monitor_id in response.json()['Query']:
             output.append(monitor_id['monitor_id'])
     except Exception as error:
         raise Exception(error)
@@ -97,9 +95,26 @@ def get_monitor_ids(conn: str, dbms: str):
 # Power meter data from AnyLog query:
 def select_power_plant(conn: str, dbms: str, increment_unit: str, increment_value: int, time_column: str,
                        start_time: str, end_time: str, monitor_id: str):
+    query = f"""
+    SELECT 
+        increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, 
+        MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(a_n_voltage) AS a_kv, 
+        AVG(b_n_voltage) AS b_kv, AVG(c_n_voltage) AS c_kv, AVG(powerfactor) AS pf, 
+        AVG(a_current) AS amp_1, AVG(b_current) AS amp_2, AVG(c_current) AS amp_3, 
+        AVG(frequency) AS hz
+    FROM 
+        pp_pm 
+    WHERE
+        {time_column} >= '{start_time}' AND 
+        {time_column} < '{end_time}' AND 
+        monitor_id='{monitor_id}' 
+    GROUP BY 
+        monitor_id 
+    ORDER BY 
+        min_ts
+    """
 
-    query = f"""SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(a_n_voltage) AS a_kv, AVG(b_n_voltage) AS b_kv, AVG(c_n_voltage) AS c_kv, AVG(powerfactor) AS pf, AVG(a_current) AS amp_1, AVG(b_current) AS amp_2, AVG(c_current) AS amp_3, AVG(frequency) AS hz FROM pp_pm WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' AND  monitor_id='{monitor_id}' GROUP BY monitor_id ORDER BY min_ts"""
-    command = f"sql {dbms} format=json and stat=false {query}"
+    command = f"sql {dbms} format=json and stat=false {query.replace('\n', '').strip()}"
     response = _get_data(conn=conn, command=command, destination="network")
     try:
         return response.json()['Query']
@@ -110,8 +125,20 @@ def select_power_plant(conn: str, dbms: str, increment_unit: str, increment_valu
 # PV meter data from AnyLog query:
 def select_tap_value(conn: str, dbms: str, increment_unit: str, increment_value: int, time_column: str, start_time: str,
                      end_time: str):
-    query = f"""SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(value) AS tap FROM pv WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' GROUP BY  monitor_id  ORDER BY  min_ts"""
-    command = f"sql {dbms} format=json and stat=false {query}"
+    query = f"""
+    SELECT 
+        increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, 
+        MAX(timestamp)::ljust(19) AS max_ts, AVG(value) AS tap
+    FROM 
+        pv 
+    WHERE 
+        {time_column} >= '{start_time}' AND {time_column} < '{end_time}'
+    GROUP BY 
+        monitor_id 
+    ORDER BY 
+        min_ts
+    """
+    command = f"sql {dbms} format=json and stat=false {query.replace('\n', '').strip()}"
     response = _get_data(conn=conn, command=command, destination="network")
     try:
         return response.json()['Query']
@@ -121,6 +148,7 @@ def select_tap_value(conn: str, dbms: str, increment_unit: str, increment_value:
 
 def generate_report(merged_df, config):
     """Generate the Power Monitoring PDF report."""
+    # pdf_path = os.path.join(config['output_dir'], f"{config['output_filename']}.pdf")
     output_file = config.get('output_filename').strip()
     start_time = config.get('start_time')
     end_time = config.get('end_time')
@@ -136,6 +164,7 @@ def generate_report(merged_df, config):
 
     # pdf_path = os.path.join(config['output_dir'], f"{config['output_filename']}_{config['start_time'].split(" ")[0].replace('-', '')}_{config['end_time'].split(" ")[0].replace('-', '')}.pdf")
     pdf_path = os.path.join(config['output_dir'], output_file)
+
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=landscape(letter),

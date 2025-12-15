@@ -282,7 +282,7 @@ async def create_report(request: GenerateReportRequest):
         # Generate report
         pdf_path = generate_report(merged_df, config)
 
-        # Return the PDF file as a download
+        # Return the PDF file for inline viewing (can be downloaded via button)
         if not os.path.exists(pdf_path):
             raise HTTPException(status_code=500, detail="Generated PDF file not found")
         
@@ -290,7 +290,7 @@ async def create_report(request: GenerateReportRequest):
             pdf_path,
             media_type='application/pdf',
             filename=f"{config['output_filename']}.pdf",
-            headers={"Content-Disposition": f"attachment; filename={config['output_filename']}.pdf"}
+            headers={"Content-Disposition": f"inline; filename={config['output_filename']}.pdf"}
         )
 
     except HTTPException:
