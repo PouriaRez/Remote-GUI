@@ -95,26 +95,9 @@ def get_monitor_ids(conn: str, dbms: str):
 # Power meter data from AnyLog query:
 def select_power_plant(conn: str, dbms: str, increment_unit: str, increment_value: int, time_column: str,
                        start_time: str, end_time: str, monitor_id: str):
-    query = f"""
-    SELECT 
-        increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, 
-        MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(a_n_voltage) AS a_kv, 
-        AVG(b_n_voltage) AS b_kv, AVG(c_n_voltage) AS c_kv, AVG(powerfactor) AS pf, 
-        AVG(a_current) AS amp_1, AVG(b_current) AS amp_2, AVG(c_current) AS amp_3, 
-        AVG(frequency) AS hz
-    FROM 
-        pp_pm 
-    WHERE
-        {time_column} >= '{start_time}' AND 
-        {time_column} < '{end_time}' AND 
-        monitor_id='{monitor_id}' 
-    GROUP BY 
-        monitor_id 
-    ORDER BY 
-        min_ts
-    """
+    query = f"""SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(a_n_voltage) AS a_kv, AVG(b_n_voltage) AS b_kv, AVG(c_n_voltage) AS c_kv, AVG(powerfactor) AS pf, AVG(a_current) AS amp_1, AVG(b_current) AS amp_2, AVG(c_current) AS amp_3, AVG(frequency) AS hz FROM pp_pm WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' AND monitor_id='{monitor_id}' GROUP BY monitor_id ORDER BY min_ts"""
 
-    command = f"sql {dbms} format=json and stat=false {query.replace('\n', '').strip()}"
+    command = f"sql {dbms} format=json and stat=false {query.strip()}"
     response = _get_data(conn=conn, command=command, destination="network")
     try:
         return response.json()['Query']
@@ -125,20 +108,8 @@ def select_power_plant(conn: str, dbms: str, increment_unit: str, increment_valu
 # PV meter data from AnyLog query:
 def select_tap_value(conn: str, dbms: str, increment_unit: str, increment_value: int, time_column: str, start_time: str,
                      end_time: str):
-    query = f"""
-    SELECT 
-        increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, 
-        MAX(timestamp)::ljust(19) AS max_ts, AVG(value) AS tap
-    FROM 
-        pv 
-    WHERE 
-        {time_column} >= '{start_time}' AND {time_column} < '{end_time}'
-    GROUP BY 
-        monitor_id 
-    ORDER BY 
-        min_ts
-    """
-    command = f"sql {dbms} format=json and stat=false {query.replace('\n', '').strip()}"
+    query = f"""SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(value) AS tap FROM pv WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' GROUP BY monitor_id ORDER BY min_ts"""
+    command = f"sql {dbms} format=json and stat=false {query}"
     response = _get_data(conn=conn, command=command, destination="network")
     try:
         return response.json()['Query']
