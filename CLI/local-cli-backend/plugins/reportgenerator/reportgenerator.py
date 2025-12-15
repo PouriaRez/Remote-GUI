@@ -81,7 +81,7 @@ def check_data(conn: str, dbms: str):
 # monitor_ids
 def get_monitor_ids(conn: str, dbms: str):
     output = []
-    query = "SELECT distinct(monitor_id) AS monitor_id FROM pp_pm"
+    query = "SELECT distinct(monitor_id) AS monitor_id FROM pp_pm WHERE period(hour, 1, now(), timestamp)"
     command = f"sql {dbms} format=json and stat=false {query}"
     response = _get_data(conn=conn, command=command, destination="network")
     try:
