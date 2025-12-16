@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { getDatabases } from '../../services/api';
-import { listMonitorIds } from './reportgenerator_api';
 import '../../styles/ReportgeneratorPage.css';
 
 // Plugin metadata - used by the plugin loader
@@ -10,8 +8,8 @@ export const pluginMetadata = {
 };
 
 const ReportgeneratorPage = ({ node }) => {
-  const [databases, setDatabases] = useState([]);
-  const [selectedDbms, setSelectedDbms] = useState('');
+  const [reports, setReports] = useState([]);
+  const [selectedReport, setSelectedReport] = useState('');
   const [monitorIds, setMonitorIds] = useState([]);
   const [selectedMonitorId, setSelectedMonitorId] = useState('');
   
@@ -21,31 +19,33 @@ const ReportgeneratorPage = ({ node }) => {
   const [timeColumn, setTimeColumn] = useState('timestamp');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [pageOrientation, setPageOrientation] = useState('landscape');
   
   // UI state
   const [loading, setLoading] = useState(false);
+  const [loadingReports, setLoadingReports] = useState(false);
   const [loadingMonitorIds, setLoadingMonitorIds] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [pdfFilename, setPdfFilename] = useState(null);
 
-  // Fetch databases on component mount
+  // Fetch available reports on component mount
   useEffect(() => {
     if (node) {
-      fetchDatabases();
+      fetchReports();
     }
   }, [node]);
 
-  // Fetch monitor IDs when DBMS is selected
+  // Fetch monitor IDs when report is selected
   useEffect(() => {
-    if (selectedDbms && node) {
+    if (selectedReport && node) {
       fetchMonitorIds();
     } else {
       setMonitorIds([]);
       setSelectedMonitorId('');
     }
-  }, [selectedDbms, node]);
+  }, [selectedReport, node]);
 
   // Helper function to convert Date to date format (YYYY-MM-DD)
   const formatDateForInput = (date) => {
@@ -97,58 +97,61 @@ const ReportgeneratorPage = ({ node }) => {
     }
   };
 
-  const fetchDatabases = async () => {
-    if (!node) return;
-    
-    setLoading(true);
-    setError(null);
+  const fetchReports = async () => {
     try {
-      const data = await getDatabases({ connectInfo: node });
-      if (data && data.data) {
-        // Parse the response - extract database names from objects
-        const dbList = data.data.map(item => {
-          // Handle both object format {database_name, name} and string format
-          if (typeof item === 'string') {
-            return item;
-          } else if (item && (item.database_name || item.name)) {
-            return item.database_name || item.name;
-          }
-          return item;
-        }).filter(Boolean); // Remove any null/undefined values
-        setDatabases(dbList);
+      setLoadingReports(true);
+      const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
+      const response = await fetch(`${API_URL}/reportgenerator/list-reports/`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch reports');
       }
+
+      const data = await response.json();
+      setReports(data.reports || []);
     } catch (err) {
-      setError(err.message || 'Failed to fetch databases');
+      setError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingReports(false);
     }
   };
 
   const fetchMonitorIds = async () => {
-    if (!node || !selectedDbms) return;
+    if (!selectedReport || !node) return;
     
-    setLoadingMonitorIds(true);
-    setError(null);
     try {
-      const result = await listMonitorIds({
-        connection: node,
-        dbms: selectedDbms
+      setLoadingMonitorIds(true);
+      const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
+      const response = await fetch(`${API_URL}/reportgenerator/monitor-ids-by-report/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          connection: node,
+          report_config_name: selectedReport,
+        }),
       });
-      if (result.success && result.monitor_ids) {
-        // Parse the response - extract monitor IDs from objects or use strings directly
-        const monitorList = result.monitor_ids.map(item => {
-          // Handle both object format and string format
-          if (typeof item === 'string') {
-            return item;
-          } else if (item && (item.monitor_id || item.name || item.id)) {
-            return item.monitor_id || item.name || item.id;
-          }
-          return String(item); // Convert to string as fallback
-        }).filter(Boolean); // Remove any null/undefined values
-        setMonitorIds(monitorList);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch monitor IDs');
       }
+
+      const data = await response.json();
+      // Parse response to extract monitor IDs
+      const ids = data.monitor_ids?.map(id => {
+        if (typeof id === 'string') return id;
+        if (id.monitor_id) return id.monitor_id;
+        return id;
+      }) || [];
+      setMonitorIds(ids);
     } catch (err) {
-      setError(err.message || 'Failed to fetch monitor IDs');
+      setError(err.message);
       setMonitorIds([]);
     } finally {
       setLoadingMonitorIds(false);
@@ -156,8 +159,8 @@ const ReportgeneratorPage = ({ node }) => {
   };
 
   const handleGenerateReport = async () => {
-    if (!node || !selectedDbms || !selectedMonitorId) {
-      setError('Please select DBMS and Monitor ID');
+    if (!node || !selectedReport || !selectedMonitorId) {
+      setError('Please select Report and Monitor ID');
       return;
     }
 
@@ -177,13 +180,14 @@ const ReportgeneratorPage = ({ node }) => {
 
       const request = {
         connection: node,
-        dbms: selectedDbms,
+        report_config_name: selectedReport,
         increment_unit: incrementUnit,
         increment_value: incrementValue,
         time_column: timeColumn,
         start_time: backendStartTime,
         end_time: backendEndTime,
-        monitor_id: selectedMonitorId
+        monitor_id: selectedMonitorId,
+        page_orientation: pageOrientation
       };
 
       const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
@@ -221,7 +225,7 @@ const ReportgeneratorPage = ({ node }) => {
     }
   };
 
-  const canGenerateReport = node && selectedDbms && selectedMonitorId && startTime && endTime;
+  const canGenerateReport = node && selectedReport && selectedMonitorId && startTime && endTime;
 
   return (
     <div className="reportgenerator-page">
@@ -248,31 +252,31 @@ const ReportgeneratorPage = ({ node }) => {
       )}
 
       <div className="reportgenerator-form">
-        {/* Database Selection */}
+        {/* Report Selection */}
         <div className="form-section">
-          <h3>Step 1: Select Database</h3>
+          <h3>Step 1: Select Report</h3>
           <div className="form-group">
-            <label htmlFor="dbms-select">DBMS *</label>
+            <label htmlFor="report-select">Report Type *</label>
             <select
-              id="dbms-select"
+              id="report-select"
               className="form-control"
-              value={selectedDbms}
-              onChange={(e) => setSelectedDbms(e.target.value)}
-              disabled={loading}
+              value={selectedReport}
+              onChange={(e) => setSelectedReport(e.target.value)}
+              disabled={loadingReports}
             >
-              <option value="">-- Select Database --</option>
-              {databases.map((db, idx) => (
-                <option key={idx} value={db}>
-                  {db}
+              <option value="">-- Select Report --</option>
+              {reports.map((report, idx) => (
+                <option key={idx} value={report.name}>
+                  {report.title} {report.subtitle ? `- ${report.subtitle}` : ''}
                 </option>
               ))}
             </select>
-            {loading && <div className="loading-indicator">Loading databases...</div>}
+            {loadingReports && <div className="loading-indicator">Loading reports...</div>}
           </div>
         </div>
 
         {/* Monitor ID Selection */}
-        {selectedDbms && (
+        {selectedReport && (
           <div className="form-section">
             <h3>Step 2: Select Monitor ID</h3>
             <div className="form-group">
@@ -297,7 +301,7 @@ const ReportgeneratorPage = ({ node }) => {
         )}
 
         {/* Report Parameters */}
-        {selectedDbms && selectedMonitorId && (
+        {selectedReport && selectedMonitorId && (
           <div className="form-section">
             <h3>Step 3: Configure Report Parameters</h3>
             
@@ -365,6 +369,19 @@ const ReportgeneratorPage = ({ node }) => {
                 />
                 <small className="form-help">Time will be set to 00:00:00</small>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="page-orientation">Page Orientation</label>
+              <select
+                id="page-orientation"
+                className="form-control"
+                value={pageOrientation}
+                onChange={(e) => setPageOrientation(e.target.value)}
+              >
+                <option value="landscape">Landscape</option>
+                <option value="portrait">Portrait</option>
+              </select>
             </div>
           </div>
         )}

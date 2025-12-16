@@ -22,12 +22,21 @@ from datetime import datetime, timedelta
 import subprocess
 import requests
 import os
+import json
 
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image as RLImage, Paragraph, Spacer
-from reportlab.lib.pagesizes import landscape, letter
+# Try to import yaml, but make it optional
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image as RLImage, Paragraph, Spacer, PageBreak
+from reportlab.lib.pagesizes import landscape, letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib import colors
+from reportlab.lib.units import inch
 
 
 def _get_data(conn: str, command: str, destination: str = None):
@@ -55,16 +64,104 @@ def _update_timestamp(end_time) -> str:
 
 
 def image_download(image_url):
+    """Download image from URL or return local file path"""
     image_url_path = os.path.expandvars(os.path.expanduser(image_url))
+    
+    # If it's already a local file, return it
     if os.path.isfile(image_url_path):
         return image_url_path
+    
+    # Try to download from URL
     try:
-        content = requests.get(image_url_path).content
-        with open('new_image.png', 'wb') as f:
-            f.write(content)
+        import tempfile
+        # Create a temporary file with proper extension
+        temp_dir = tempfile.gettempdir()
+        temp_file = os.path.join(temp_dir, f"report_logo_{hash(image_url) % 10000}.png")
+        
+        # Download the image
+        response = requests.get(image_url_path, timeout=10)
+        response.raise_for_status()
+        
+        with open(temp_file, 'wb') as f:
+            f.write(response.content)
+        
+        print(f"Downloaded logo from {image_url_path} to {temp_file}")
+        return temp_file
     except Exception as error:
-        raise Exception(error)
-    return 'new_image.png'
+        print(f"Warning: Could not download image from {image_url_path}: {error}")
+        # Return None instead of raising, so report can still be generated
+        return None
+
+
+def load_config(config_path: str = None, config_data: dict = None):
+    """
+    Load configuration from file or dict.
+    Returns default config if neither is provided.
+    """
+    if config_data:
+        return config_data
+    
+    if config_path:
+        config_path = os.path.expandvars(os.path.expanduser(config_path))
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                if (config_path.endswith('.yaml') or config_path.endswith('.yml')):
+                    if HAS_YAML:
+                        return yaml.safe_load(f)
+                    else:
+                        raise Exception("YAML support not available. Install PyYAML: pip install pyyaml")
+                else:
+                    return json.load(f)
+    
+    # Return default config
+    default_config_path = os.path.join(
+        os.path.dirname(__file__),
+        'templates',
+        'report_config_template.json'
+    )
+    if os.path.exists(default_config_path):
+        with open(default_config_path, 'r') as f:
+            return json.load(f)
+    
+    # Fallback to hardcoded defaults
+    return {
+        "db_name": "cos",
+        "title": "CITY OF SABETHA MUNICIPAL POWER PLANT",
+        "subtitle": "EVERGY INTERCONNECTION",
+        "logo_url": "https://tse1.mm.bing.net/th/id/OIP.7bJT74xSx81aYJgz-rl-TwAAAA?cb=ucfimg2&ucfimg=1&rs=1&pid=ImgDetMain&o=7&rm=3",
+        "queries": {
+            "power_plant": "SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(a_n_voltage) AS a_kv, AVG(b_n_voltage) AS b_kv, AVG(c_n_voltage) AS c_kv, AVG(powerfactor) AS pf, AVG(a_current) AS amp_1, AVG(b_current) AS amp_2, AVG(c_current) AS amp_3, AVG(frequency) AS hz FROM pp_pm WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' AND monitor_id='{monitor_id}' GROUP BY monitor_id ORDER BY min_ts",
+            "tap_value": "SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(value) AS tap FROM pv WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' GROUP BY monitor_id ORDER BY min_ts"
+        },
+        "data_merging": {
+            "primary_query": "power_plant",
+            "join_key": "hour",
+            "join_method": "left",
+            "timestamp_field": "min_ts",
+            "timestamp_floor": "h"
+        },
+        "table_columns": {
+            "column_definitions": [
+                {"name": "DATE/TIME", "source": "min_ts", "source_query": "power_plant", "transform": "datetime", "format": "datetime"},
+                {"name": "kW", "source": "kw", "source_query": "power_plant", "transform": "round", "format": "int"},
+                {"name": "KV", "source": ["a_kv", "b_kv", "c_kv"], "source_query": "power_plant", "transform": "average", "format": "int"},
+                {"name": "PF", "source": "pf", "source_query": "power_plant", "transform": "divide", "transform_value": 100, "format": "float", "decimal_places": 2},
+                {"name": "1", "source": "amp_1", "source_query": "power_plant", "transform": "round", "format": "int"},
+                {"name": "2", "source": "amp_2", "source_query": "power_plant", "transform": "round", "format": "int"},
+                {"name": "3", "source": "amp_3", "source_query": "power_plant", "transform": "round", "format": "int"},
+                {"name": "1", "source": "a_kv", "source_query": "power_plant", "transform": "divide", "transform_value": 100, "format": "float", "decimal_places": 2},
+                {"name": "2", "source": "b_kv", "source_query": "power_plant", "transform": "divide", "transform_value": 100, "format": "float", "decimal_places": 2},
+                {"name": "3", "source": "c_kv", "source_query": "power_plant", "transform": "divide", "transform_value": 100, "format": "float", "decimal_places": 2},
+                {"name": "Hz", "source": "hz", "source_query": "power_plant", "transform": "divide", "transform_value": 100, "format": "float", "decimal_places": 2},
+                {"name": "TAP", "source": "tap", "source_query": "tap_value", "transform": "round", "format": "int", "allow_null": True}
+            ],
+            "column_groups": {"AMPS": [4, 5, 6], "VOLTAGE": [7, 8, 9]},
+            "column_widths": {
+                "portrait": [80, 35, 35, 30, 30, 30, 30, 35, 35, 35, 30, 30],
+                "landscape": [120, 50, 50, 40, 50, 50, 50, 50, 50, 50, 40, 40]
+            }
+        }
+    }
 
 
 # Validate database and tables
@@ -92,10 +189,36 @@ def get_monitor_ids(conn: str, dbms: str):
     return output
 
 
-# Power meter data from AnyLog query:
+# Execute query from config with placeholders
+def execute_config_query(conn: str, dbms: str, query_template: str, 
+                         increment_unit: str, increment_value: int, time_column: str,
+                         start_time: str, end_time: str, monitor_id: str = None):
+    """
+    Execute a query from config with placeholders replaced.
+    Placeholders: {increment_unit}, {increment_value}, {time_column}, 
+                  {start_time}, {end_time}, {monitor_id}
+    """
+    query = query_template.format(
+        increment_unit=increment_unit,
+        increment_value=increment_value,
+        time_column=time_column,
+        start_time=start_time,
+        end_time=end_time,
+        monitor_id=monitor_id if monitor_id else ''
+    )
+    
+    command = f"sql {dbms} format=json and stat=false {query.replace(chr(10), ' ').replace(chr(13), ' ').strip()}"
+    response = _get_data(conn=conn, command=command, destination="network")
+    try:
+        return response.json()['Query']
+    except Exception as error:
+        raise Exception(error)
+
+
+# Power meter data from AnyLog query (legacy function for backward compatibility):
 def select_power_plant(conn: str, dbms: str, increment_unit: str, increment_value: int, time_column: str,
                        start_time: str, end_time: str, monitor_id: str):
-    query = f"""
+    query = """
     SELECT 
         increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, 
         MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(a_n_voltage) AS a_kv, 
@@ -113,19 +236,14 @@ def select_power_plant(conn: str, dbms: str, increment_unit: str, increment_valu
     ORDER BY 
         min_ts
     """
-
-    command = f"sql {dbms} format=json and stat=false {query.replace('\n', '').strip()}"
-    response = _get_data(conn=conn, command=command, destination="network")
-    try:
-        return response.json()['Query']
-    except Exception as error:
-        raise Exception(error)
+    return execute_config_query(conn, dbms, query, increment_unit, increment_value, 
+                                time_column, start_time, end_time, monitor_id)
 
 
-# PV meter data from AnyLog query:
+# PV meter data from AnyLog query (legacy function for backward compatibility):
 def select_tap_value(conn: str, dbms: str, increment_unit: str, increment_value: int, time_column: str, start_time: str,
                      end_time: str):
-    query = f"""
+    query = """
     SELECT 
         increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, 
         MAX(timestamp)::ljust(19) AS max_ts, AVG(value) AS tap
@@ -138,26 +256,72 @@ def select_tap_value(conn: str, dbms: str, increment_unit: str, increment_value:
     ORDER BY 
         min_ts
     """
-    command = f"sql {dbms} format=json and stat=false {query.replace('\n', '').strip()}"
-    response = _get_data(conn=conn, command=command, destination="network")
-    try:
-        return response.json()['Query']
-    except Exception as error:
-        raise Exception(error)
+    return execute_config_query(conn, dbms, query, increment_unit, increment_value, 
+                                time_column, start_time, end_time)
 
 
-def generate_report(merged_df, config):
-    """Generate the Power Monitoring PDF report."""
+
+
+def _draw_page_number(canvas, doc):
+    """Draw page number at bottom center on first page"""
+    canvas.setFont("Helvetica", 9)
+    page_text = f"Page {doc.page}"
+    page_width = canvas.stringWidth(page_text, "Helvetica", 9)
+    canvas.drawString((doc.pagesize[0] - page_width) / 2, 20, page_text)
+
+def _draw_later_pages(canvas, doc, config):
+    """Draw header on later pages: timestamp and page number at bottom"""
+    now = datetime.now()
+    timestamp = f"{now.month}/{now.day}/{now.year} {now.strftime('%H:%M:%S')}"
+    
+    # Draw timestamp at top left
+    canvas.setFont("Helvetica", 9)
+    canvas.drawString(20, doc.pagesize[1] - 20, timestamp)
+    
+    # Draw page number at bottom center
+    page_text = f"Page {doc.page}"
+    page_width = canvas.stringWidth(page_text, "Helvetica", 9)
+    canvas.drawString((doc.pagesize[0] - page_width) / 2, 20, page_text)
+
+
+def generate_report(merged_df, config, report_config=None, page_orientation='landscape'):
+    """
+    Generate the Power Monitoring PDF report.
+    
+    Args:
+        merged_df: DataFrame with merged data
+        config: Runtime config (output_dir, output_filename, logo_path, etc.)
+        report_config: Report configuration from JSON/YAML file
+        page_orientation: 'landscape' or 'portrait'
+    """
+    # Load report config if not provided
+    if report_config is None:
+        report_config = load_config()
+    
     pdf_path = os.path.join(config['output_dir'], f"{config['output_filename']}.pdf")
+    
+    # Set page size based on orientation
+    if page_orientation == 'portrait':
+        pagesize = letter
+    else:
+        pagesize = landscape(letter)
+    
+    # Calculate available width (page width minus margins)
+    page_width = pagesize[0]
+    available_width = page_width - 40  # 20px margin on each side
+    
+    # Create document with callbacks for page numbers
     doc = SimpleDocTemplate(
         pdf_path,
-        pagesize=landscape(letter),
-        leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20
+        pagesize=pagesize,
+        leftMargin=20, rightMargin=20, topMargin=20, bottomMargin=20,
+        onFirstPage=lambda canvas, doc: _draw_page_number(canvas, doc),
+        onLaterPages=lambda canvas, doc: _draw_later_pages(canvas, doc, config)
     )
 
     elements = []
     styles = getSampleStyleSheet()
-
+    
     # Create centered style for subtitle
     centered_style = ParagraphStyle(
         'Centered',
@@ -179,103 +343,246 @@ def generate_report(merged_df, config):
     # Timestamp and Logo on same line
     now = datetime.now()
     timestamp = f"{now.month}/{now.day}/{now.year} {now.strftime('%H:%M:%S')}"
+    
+    # Get title and subtitle from config
+    title = report_config.get('title', '') if report_config else ''
+    subtitle = report_config.get('subtitle', '') if report_config else ''
+    logo_path = config.get("logo_path") if config else None
 
-    if os.path.exists(config["logo_path"]):
-        # Create a table to align timestamp (left) and logo (right)
-        logo = RLImage(config["logo_path"])
-        logo.drawHeight = 40
-        logo.drawWidth = 40
-
-        header_table = Table([[Paragraph(timestamp, styles["Normal"]), logo]], colWidths=[700, 50])
-        header_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
-        elements.append(header_table)
+    # Create header table with timestamp (left) and logo (right)
+    # Adjust column widths based on available space
+    logo_width = 50
+    timestamp_col_width = available_width - logo_width - 10  # Leave some gap
+    
+    if logo_path and os.path.exists(str(logo_path)):
+        try:
+            logo = RLImage(logo_path)
+            logo.drawHeight = 40
+            logo.drawWidth = 40
+            
+            # Create a table to align timestamp (left) and logo (right)
+            # Use available width dynamically
+            header_table = Table([[Paragraph(timestamp, styles["Normal"]), logo]], 
+                               colWidths=[timestamp_col_width, logo_width])
+            header_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            elements.append(header_table)
+        except Exception as e:
+            print(f"Warning: Could not add logo: {e}")
+            elements.append(Paragraph(timestamp, styles["Normal"]))
     else:
         elements.append(Paragraph(timestamp, styles["Normal"]))
 
     elements.append(Spacer(1, 8))
 
     # Title (centered)
-    elements.append(Paragraph(
-        "<b>CITY OF SABETHA MUNICIPAL POWER PLANT</b>",
-        title_style
-    ))
+    if title:
+        elements.append(Paragraph(
+            f"<b>{title}</b>",
+            title_style
+        ))
 
     # Subtitle (centered)
-    elements.append(Paragraph(
-        "<b>EVERGY INTERCONNECTION</b>",
-        centered_style
-    ))
+    if subtitle:
+        elements.append(Paragraph(
+            f"<b>{subtitle}</b>",
+            centered_style
+        ))
+    
     elements.append(Spacer(1, 6))
 
-    # Data Table - AMPS and VOLTAGE in row 0, other labels in row 1
+    # Get table configuration from config
+    table_config = report_config.get('table_columns', {}) if report_config else {}
+    column_definitions = table_config.get('column_definitions', [])
+    
+    # If using old format (power_plant array), convert to new format
+    if not column_definitions and 'power_plant' in table_config:
+        # Legacy format - create basic definitions
+        column_names = table_config.get('power_plant', [])
+        column_definitions = [{"name": name} for name in column_names]
+    
+    # Extract column names from definitions
+    column_names = [col_def.get('name', '') for col_def in column_definitions]
+    column_groups = table_config.get('column_groups', {})
+    
+    num_columns = len(column_names)
+    
+    # Data Table - Build row 0 dynamically from column_groups
     table_data = []
+    
+    # Row 0: Build header row with group labels
+    row0 = [""] * num_columns
+    for group_name, column_indices in column_groups.items():
+        if column_indices and len(column_indices) > 0:
+            # Set the group name in the first column of the group
+            first_idx = column_indices[0]
+            if first_idx < num_columns:
+                row0[first_idx] = group_name
+    table_data.append(row0)
 
-    # Row 0: Span all columns with labels, no empty cells
-    table_data.append([
-        "", "", "", "", "AMPS", "", "",
-        "VOLTAGE", "", "", "", ""
-    ])
+    # Row 1: All column sub-headers from config
+    table_data.append(column_names)
 
-    # Row 1: All column sub-headers
-    table_data.append([
-        "DATE/TIME", "kW", "KV", "PF", "1", "2", "3",
-        "1", "2", "3", "Hz", "TAP"
-    ])
-
-    # Data rows
+    # Data rows - build dynamically from column definitions
     for _, row in merged_df.iterrows():
-        ts = pd.to_datetime(row["min_ts"]).floor("h")
-        # Format date without leading zeros (cross-platform)
-        datetime_str = f"{ts.month}/{ts.day}/{ts.year} {ts.strftime('%H:%M:%S')}"
+        data_row = []
+        
+        for col_def in column_definitions:
+            source = col_def.get('source')
+            transform = col_def.get('transform', 'none')
+            transform_value = col_def.get('transform_value')
+            format_type = col_def.get('format', 'string')
+            decimal_places = col_def.get('decimal_places', 2)
+            allow_null = col_def.get('allow_null', False)
+            
+            # Get the value from the row
+            if source is None:
+                value = ""
+            elif isinstance(source, list):
+                # Multiple sources - apply transform (e.g., average)
+                values = []
+                for s in source:
+                    if s in row.index:
+                        values.append(row[s])
+                valid_values = [v for v in values if pd.notna(v) and v is not None]
+                if transform == 'average' and valid_values:
+                    value = sum(float(v) for v in valid_values) / len(valid_values)
+                elif transform == 'sum' and valid_values:
+                    value = sum(float(v) for v in valid_values)
+                else:
+                    value = valid_values[0] if valid_values else None
+            else:
+                # Single source field - row is a pandas Series from iterrows()
+                if source in row.index:
+                    value = row[source]
+                else:
+                    value = None
+            
+            # Handle null values
+            if pd.isna(value) or value is None:
+                if allow_null:
+                    data_row.append("")
+                else:
+                    data_row.append(0)
+                continue
+            
+            # Apply transformations
+            if transform == 'datetime':
+                # Format datetime - this returns a string, so skip other transforms
+                try:
+                    ts = pd.to_datetime(value).floor("h")
+                    value = f"{ts.month}/{ts.day}/{ts.year} {ts.strftime('%H:%M:%S')}"
+                except Exception:
+                    value = str(value)
+            else:
+                # Apply numeric transformations
+                try:
+                    if transform == 'divide' and transform_value:
+                        value = float(value) / float(transform_value)
+                    elif transform == 'multiply' and transform_value:
+                        value = float(value) * float(transform_value)
+                    elif transform == 'round':
+                        value = round(float(value))
+                    elif transform == 'none' or transform is None:
+                        # No transform, but may need to convert to float for formatting
+                        if format_type in ['int', 'float']:
+                            value = float(value)
+                    
+                    # Apply formatting
+                    if format_type == 'int':
+                        value = int(round(float(value)))
+                    elif format_type == 'float':
+                        value = round(float(value), decimal_places)
+                    elif format_type == 'string' or format_type == 'datetime':
+                        value = str(value)
+                except (ValueError, TypeError):
+                    # If transformation fails, use original value or empty string
+                    value = "" if not allow_null else value
+            
+            data_row.append(value)
+        
+        table_data.append(data_row)
 
-        table_data.append([
-            datetime_str,
-            int(round(row["kw"])),
-            int(round((row["a_kv"] + row["b_kv"] + row["c_kv"]) / 3)),
-            round(row["pf"] / 100, 2),
-            int(round(row["amp_1"])),
-            int(round(row["amp_2"])),
-            int(round(row["amp_3"])),
-            round(row["a_kv"] / 100, 2),
-            round(row["b_kv"] / 100, 2),
-            round(row["c_kv"] / 100, 2),
-            round(row["hz"] / 100, 2),
-            int(round(row["tap"])) if pd.notna(row["tap"]) else ""
-        ])
+    # Get column widths from config or use defaults
+    column_widths_config = table_config.get('column_widths', {})
+    
+    if page_orientation == 'portrait':
+        col_widths = column_widths_config.get('portrait', None)
+        if col_widths is None:
+            # Default portrait widths if not in config
+            col_widths = [80, 35, 35, 30, 30, 30, 30, 35, 35, 35, 30, 30]
+        table_font_size = 7
+    else:
+        col_widths = column_widths_config.get('landscape', None)
+        if col_widths is None:
+            # Default landscape widths if not in config
+            col_widths = [120, 50, 50, 40, 50, 50, 50, 50, 50, 50, 40, 40]
+        table_font_size = 8
+    
+    # Ensure column widths match number of columns
+    if len(col_widths) != num_columns:
+        # If mismatch, pad or truncate to match
+        if len(col_widths) < num_columns:
+            # Pad with average of existing widths
+            avg_width = sum(col_widths) / len(col_widths) if col_widths else 40
+            col_widths.extend([avg_width] * (num_columns - len(col_widths)))
+        else:
+            # Truncate to match
+            col_widths = col_widths[:num_columns]
+    
+    # Normalize column widths to fit available width
+    total_col_width = sum(col_widths)
+    if total_col_width > available_width:
+        # Scale down proportionally
+        scale_factor = available_width / total_col_width
+        col_widths = [w * scale_factor for w in col_widths]
+    
+    # Create table with calculated column widths
+    table = Table(table_data, repeatRows=2, colWidths=col_widths)
 
-    # Create table with comfortable sizing
-    table = Table(table_data, repeatRows=2)
-
-    table_style = TableStyle([
-        # Row 0: Labels spanning - gray background, no empty cells
+    # Build table style with dynamic SPAN commands based on column_groups
+    table_style_commands = [
+        # Row 0: Labels spanning - gray background
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("SPAN", (0, 0), (0, 0)),  # DATE/TIME
-        ("SPAN", (1, 0), (1, 0)),  # kW
-        ("SPAN", (2, 0), (2, 0)),  # KV
-        ("SPAN", (3, 0), (3, 0)),  # PF
-        ("SPAN", (4, 0), (6, 0)),  # AMPS spans 3 columns
-        ("SPAN", (7, 0), (9, 0)),  # VOLTAGE spans 3 columns
-        ("SPAN", (10, 0), (10, 0)),  # Hz
-        ("SPAN", (11, 0), (11, 0)),  # TAP
+    ]
+    
+    # Add SPAN commands for column groups
+    # First, span individual columns that don't belong to groups
+    spanned_columns = set()
+    for group_name, column_indices in column_groups.items():
+        if column_indices and len(column_indices) > 0:
+            # Span the group across its columns
+            first_col = min(column_indices)
+            last_col = max(column_indices)
+            if first_col < num_columns and last_col < num_columns:
+                table_style_commands.append(("SPAN", (first_col, 0), (last_col, 0)))
+                spanned_columns.update(column_indices)
+    
+    # Span individual columns that aren't part of groups
+    for i in range(num_columns):
+        if i not in spanned_columns:
+            table_style_commands.append(("SPAN", (i, 0), (i, 0)))
+    
+    # Continue with rest of table style
+    table_style_commands.extend([
         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 0), (-1, 0), table_font_size),
 
         # Row 1: Sub-headers - gray background
         ("BACKGROUND", (0, 1), (-1, 1), colors.lightgrey),
         ("TEXTCOLOR", (0, 1), (-1, 1), colors.black),
         ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 1), (-1, 1), 8),
+        ("FONTSIZE", (0, 1), (-1, 1), table_font_size),
         ("ALIGN", (0, 1), (-1, 1), "CENTER"),
 
         # Data rows styling
         ("ALIGN", (1, 2), (-1, -1), "CENTER"),
         ("ALIGN", (0, 2), (0, -1), "LEFT"),
-        ("FONTSIZE", (0, 2), (-1, -1), 8),
+        ("FONTSIZE", (0, 2), (-1, -1), table_font_size),
 
         # Comfortable padding for all cells
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
@@ -290,9 +597,11 @@ def generate_report(merged_df, config):
         # THICKER LINE between row 1 and row 2 (between headers and data)
         ("LINEBELOW", (0, 1), (-1, 1), 2, colors.black),
 
-        # THICKER LINE between column 0 and column 1 (DATE/TIME and kW)
+        # THICKER LINE between column 0 and column 1 (DATE/TIME and first data column)
         ("LINEAFTER", (0, 0), (0, -1), 2, colors.black),
     ])
+    
+    table_style = TableStyle(table_style_commands)
     table.setStyle(table_style)
     table.hAlign = 'LEFT'  # Left-justify the table
 
@@ -300,16 +609,25 @@ def generate_report(merged_df, config):
 
     # Footer section - 2 columns, 5 rows (2 blank lines above)
     elements.append(Spacer(1, 24))  # 2 blank lines
+    
+    # Get footer fields from config or use defaults
+    footer_fields = report_config.get('footer_fields', [
+        "DAILY READING",
+        "KWH IN",
+        "TOTAL GENERATION",
+        "TOTAL KW",
+        "KWH OUT"
+    ])
+    
+    footer_data = [[field, ""] for field in footer_fields]
 
-    footer_data = [
-        ["DAILY READING", ""],
-        ["KWH IN", ""],
-        ["TOTAL GENERATION", ""],
-        ["TOTAL KW", ""],
-        ["KWH OUT", ""]
-    ]
-
-    footer_table = Table(footer_data, colWidths=[140, 140])
+    # Adjust footer table width based on orientation
+    if page_orientation == 'portrait':
+        footer_col_width = min(120, (available_width - 20) / 2)
+    else:
+        footer_col_width = 140
+    
+    footer_table = Table(footer_data, colWidths=[footer_col_width, footer_col_width])
     footer_table_style = TableStyle([
         # First column (labels) - bold, left-aligned
         ("ALIGN", (0, 0), (0, -1), "LEFT"),
@@ -334,6 +652,7 @@ def generate_report(merged_df, config):
 
     elements.append(footer_table)
 
+    # Build the document - page numbers will be added via callbacks
     doc.build(elements)
 
     print(f"PDF file created: {pdf_path}")
