@@ -19,7 +19,7 @@ const ReportgeneratorPage = ({ node }) => {
   const [timeColumn, setTimeColumn] = useState('timestamp');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [pageOrientation, setPageOrientation] = useState('landscape');
+  const [pageOrientation, setPageOrientation] = useState('portrait');
   
   // UI state
   const [loading, setLoading] = useState(false);
