@@ -23,6 +23,8 @@ import subprocess
 import requests
 import os
 import json
+import re
+
 
 # Try to import yaml, but make it optional
 try:
@@ -38,6 +40,19 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 
+ENGINE_kW = { # kW values
+    2: 1500,
+    3: 850,
+    4: 980,
+    5: 1360,
+    6: 1365,
+    7: 2167,
+    8: 2500,
+    9: 1136,
+    10: 2500,
+    11: 3000,
+    12: 4432,
+}
 
 def _get_data(conn: str, command: str, destination: str = None):
     headers = {
@@ -327,6 +342,7 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
         'Centered',
         parent=styles['Normal'],
         alignment=TA_CENTER,
+
         fontSize=11,
         spaceAfter=8
     )
@@ -345,6 +361,7 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
     timestamp = f"{now.month}/{now.day}/{now.year} {now.strftime('%H:%M:%S')}"
     
     # Get title and subtitle from config
+    config_id = report_config.get('id')
     title = report_config.get('title', '') if report_config else ''
     subtitle = report_config.get('subtitle', '') if report_config else ''
     logo_path = config.get("logo_path") if config else None
@@ -386,11 +403,26 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
         ))
 
     # Subtitle (centered)
+    if subtitle and config_id == 1:
+        match = re.match(r"([A-Za-z]+)(\d+)", monitor_id)
+        engine_str = match.group(1)
+        engine_num = int(match.group(2))
+
+        updated_subtitle = f"Engine #{engine_num}" if engine_num else f"Engine {engine_str}"
+        kw_value = ENGINE_kW.get(engine_num)
+        if kw_value:
+            updated_subtitle += f"({kw_value} kW)"
+        elements.append(Paragraph(
+            f"<b>{updated_subtitle}</b>",
+            centered_style
+        ))
+
     if subtitle:
         elements.append(Paragraph(
             f"<b>{subtitle}</b>",
             centered_style
         ))
+
     
     elements.append(Spacer(1, 6))
 
