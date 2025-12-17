@@ -403,7 +403,8 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
         ))
 
     # Subtitle (centered)
-    if subtitle and config_id == 1:
+    monitor_id = config.get('monitor_id')
+    if subtitle and config_id == 1 and monitor_id:
         match = re.match(r"([A-Za-z]+)(\d+)", monitor_id)
         engine_str = match.group(1)
         engine_num = int(match.group(2))
@@ -417,11 +418,13 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
             centered_style
         ))
 
-    if subtitle:
+        print(updated_subtitle)
+    elif subtitle:
         elements.append(Paragraph(
-            f"<b>{subtitle}</b>",
+            f"<b>{subtitle} - {monitor_id}</b>" if monitor_id else f"<b>{subtitle}</b>",
             centered_style
         ))
+
 
     
     elements.append(Spacer(1, 6))

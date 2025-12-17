@@ -546,7 +546,7 @@ async def create_report(request: GenerateReportRequest):
         print(f"  Subtitle: {report_config.get('subtitle', 'N/A')}")
         print(f"  Logo URL: {report_config.get('logo_url', 'N/A')}")
         print(f"  Logo path: {config.get('logo_path', 'N/A')}")
-        
+
         # Generate report with config and orientation
         page_orientation = request.page_orientation or 'landscape'
         pdf_path = generate_report(merged_df, config, report_config=report_config, page_orientation=page_orientation)
