@@ -52,6 +52,7 @@ def analyze_file(file_path):
 def main():
     all_required = set()
     all_optional = set()
+    filenames = set()
 
     for dirname in ['CLI']:
         path = os.path.join(ROOT_PATH, dirname)
@@ -59,6 +60,7 @@ def main():
             for file in files:
                 if file.endswith(".py"):
                     full_path = os.path.join(root, file)
+                    filenames.update(file.split(".py")[0])
                     try:
                         required, optional = analyze_file(full_path)
                         all_required.update(required)
@@ -71,11 +73,14 @@ def main():
 
         print("Required packages:")
         for pkg in sorted(all_required):
-            print(f"  {pkg}")
+            if pkg not in filenames:
+                print(f"  {pkg}")
 
         print("\nOptional (try/except) packages:")
         for pkg in sorted(truly_optional):
-            print(f"  {pkg}")
+            if pkg not in filenames:
+                print(f"  {pkg}")
+            # print(f"  {pkg}")
 
 
 if __name__ == "__main__":

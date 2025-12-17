@@ -186,4 +186,10 @@ const CalculatorPage = () => {
   );
 };
 
+// Plugin metadata - used by the plugin loader
+export const pluginMetadata = {
+  name: 'Calculator',
+  icon: '🧮'
+};
+
 export default CalculatorPage;

@@ -1,11 +1,11 @@
 # =====================
 # Frontend build stage
 # =====================
-FROM node:18-slim AS frontend
+FROM node:18-slim AS frontend-build
 WORKDIR /app
 
 # Install system deps for native npm packages
-RUN apt-get -y update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential python3 git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -13,55 +13,56 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
 COPY CLI/local-cli-fe-full/package*.json ./
 RUN npm install --legacy-peer-deps --no-audit --progress=false
 
-# Copy rest of the frontend source
+# Copy frontend source
 COPY CLI/local-cli-fe-full ./
 
-# Build-time API URL (can be overridden at build time)
+# Build-time API URL
 ARG REACT_APP_API_URL=http://127.0.0.1:8000
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
 
-# Prevent OOM in big builds
+# Prevent OOM
 ENV NODE_OPTIONS=--max_old_space_size=4096
 
-# Install mongoose (since frontend code uses it) and build production frontend
+# Install frontend deps needed for build (mongoose) and build
 RUN npm install mongoose && npm run build
 
 # =====================
-# Python backend build stage
+# Backend build stage
 # =====================
-FROM python:3.11-slim AS backend
+FROM python:3.11-slim AS backend-build
 WORKDIR /app
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system packages including python3-venv for virtualenv creation
+# Install system deps for virtualenv + build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential git curl gnupg xsel npm python3-venv \
+    python3-venv build-essential git curl xsel npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment and activate PATH
+# Create virtual environment
 RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
 ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Copy and install Python backend dependencies into virtualenv
+# Copy Python dependencies and install in virtualenv
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip wheel \
+RUN pip install --upgrade pip wheel \
     && pip install --no-cache-dir -r requirements.txt
 
-# Clone and install AnyLog-API into the virtualenv
+# Clone AnyLog-API and install into virtualenv
 RUN git clone --branch main --depth 1 https://github.com/AnyLog-co/AnyLog-API /tmp/AnyLog-API \
     && cd /tmp/AnyLog-API \
     && python setup.py sdist bdist_wheel \
-    && pip install --no-cache-dir dist/*.whl
+    && pip install --no-cache-dir dist/*.whl \
+    && rm -rf /tmp/AnyLog-API
 
-# Copy backend source code and start script
-COPY templates/ templates/
+# Copy backend source and templates
 COPY CLI/ CLI/
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+COPY templates/ templates/
+COPY start.sh start.sh
+RUN chmod +x start.sh
 
 # =====================
-# Final minimal runtime image
+# Final runtime image
 # =====================
 FROM python:3.11-slim AS final
 WORKDIR /app
@@ -71,32 +72,25 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 ENV CLI_IP=0.0.0.0
 ENV CLI_PORT=8000
 
-# Copy virtualenv from backend build stage
-COPY --from=backend /opt/venv /opt/venv
+# Copy venv from backend-build
+COPY --from=backend-build /opt/venv /opt/venv
 
-# Copy backend source + start script
-COPY --from=backend /app/templates templates/
-COPY --from=backend /app/CLI CLI/
-COPY --from=backend /app/start.sh /app/start.sh
-# Copy built frontend from frontend stage
-COPY --from=frontend /app/build /app/CLI/local-cli-fe-full/build
+# Copy backend source + templates + start.sh
+COPY --from=backend-build /app/CLI CLI/
+COPY --from=backend-build /app/templates templates/
+COPY --from=backend-build /app/start.sh start.sh
 
+# Copy frontend build
+COPY --from=frontend-build /app/build /app/CLI/local-cli-fe-full/build
 
-# # Install runtime dependencies
-# RUN apt-get update && apt-get install -y --no-install-recommends npm xsel && \
-#     sed -i 's/\r$//' /app/start.sh && \
-#     chmod +x /app/start.sh && \
-#     rm -rf /var/lib/apt/lists/*
+# Install runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    npm xsel \
+    && npm install -g serve \
+    && sed -i 's/\r$//' start.sh \
+    && chmod +x start.sh \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install runtime dependencies (npm is already installed, add serve)
-RUN apt-get update && apt-get install -y --no-install-recommends npm xsel && \
-    npm install -g serve && \
-    sed -i 's/\r$//' /app/start.sh && \
-    chmod +x /app/start.sh && \
-    rm -rf /var/lib/apt/lists/*
-
-    
 EXPOSE 8000 3001
 
 ENTRYPOINT ["/app/start.sh"]
-#ENTRYPOINT ["/bin/sh"]
