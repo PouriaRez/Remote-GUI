@@ -31,6 +31,20 @@ from reportlab.lib import colors
 # =============================================================================
 # CONFIGURATION - Modify these values as needed
 # =============================================================================
+ENGINE_kW = {
+    2: 1500,
+    3: 850,
+    4: 980,
+    5: 1360,
+    6: 1365,
+    7: 2167,
+    8: 2500,
+    9: 1136,
+    10: 2500,
+    11: 3000,
+    12: 4432,
+}
+
 CONFIG = {
     'conn': '23.239.12.151:32349',
     'dbms': 'cos',
@@ -41,12 +55,11 @@ CONFIG = {
     'increment_value': 1,
     'time_column': 'timestamp',
     'logo_path': "https://tse1.mm.bing.net/th/id/OIP.7bJT74xSx81aYJgz-rl-TwAAAA?cb=ucfimg2&ucfimg=1&rs=1&pid=ImgDetMain&o=7&rm=3",
-    'engine_name': None,
-    'engine_kw': '3000kW',
+    'engine_id': None,
     'output_dir': 'outputs',
     'output_filename': 'power_monitoring_report2'
 }
-CONFIG["engine_name"] = f"Engine #{int(''.join(filter(str.isdigit, CONFIG['monitor_id'])))}"
+CONFIG["engine_id"] = int(''.join(filter(str.isdigit, CONFIG['monitor_id'])))
 
 
 # =============================================================================
@@ -201,6 +214,26 @@ def generate_pdf_report(df: pd.DataFrame, config: dict) -> str:
         spaceAfter=6
     )
 
+    # Create left-aligned bold style
+    left_bold_style = ParagraphStyle(
+        'LeftBold',
+        parent=styles['Normal'],
+        alignment=0,  # Left alignment
+        fontSize=11,
+        fontName='Helvetica-Bold',
+        spaceAfter=2
+    )
+
+    # Create right-aligned bold style
+    right_bold_style = ParagraphStyle(
+        'RightBold',
+        parent=styles['Normal'],
+        alignment=2,  # Right alignment
+        fontSize=11,
+        fontName='Helvetica-Bold',
+        spaceAfter=2
+    )
+
     # Timestamp and Logo on same line
     now = datetime.now()
     timestamp = f"{now.month}/{now.day}/{now.year} {now.strftime('%H:%M:%S')}"
@@ -229,17 +262,33 @@ def generate_pdf_report(df: pd.DataFrame, config: dict) -> str:
         title_style
     ))
 
-    # Subtitle (centered)
-    elements.append(Paragraph(
-        "<b>EVERGY INTERCONNECTION</b>",
-        centered_style
-    ))
-    elements.append(Spacer(1, 6))
+    # Subtitle (centered) - commented out as in original
+    # elements.append(Paragraph(
+    #     "<b>EVERGY INTERCONNECTION</b>",
+    #     centered_style
+    # ))
+    elements.append(Spacer(1, 12))
 
-    # Engine name and kW rating
-    engine_info = f"<b>{config.get('engine_name', '')} - {config.get('engine_kw', '')}</b>"
-    elements.append(Paragraph(engine_info, centered_style))
-    elements.append(Spacer(1, 6))
+    # Engine name and kW rating - positioned above table corners
+    engine_id = config.get('engine_id')
+    if engine_id:
+        engine_name = f"Engine #{engine_id}"
+        engine_kw = f"{ENGINE_kW.get(engine_id)} kW" if ENGINE_kW.get(engine_id) else ""
+
+        # Create a table to position engine name (left) and kW (right)
+        # Width must match the main data table width exactly (500pt total)
+        engine_header_table = Table(
+            [[Paragraph(engine_name, left_bold_style), Paragraph(engine_kw, right_bold_style)]],
+            colWidths=[250, 250]
+        )
+        engine_header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(engine_header_table)
+
+    elements.append(Spacer(1, 2))
 
     # Data Table - AMPS and VOLTAGE in row 0, other labels in row 1
     table_data = []
@@ -274,8 +323,10 @@ def generate_pdf_report(df: pd.DataFrame, config: dict) -> str:
             int(round(row["v_c"])) if pd.notna(row["v_c"]) else 0
         ])
 
-    # Create table with comfortable sizing
-    table = Table(table_data, repeatRows=2)
+    # Create table - adjusted to take up about 1/3 of page width
+    # Column widths sized appropriately for content
+    col_widths = [100, 55, 45, 45, 45, 45, 55, 55, 55]  # Total: 500
+    table = Table(table_data, colWidths=col_widths, repeatRows=2)
 
     table_style = TableStyle([
         # Row 0: Labels spanning - gray background
@@ -287,25 +338,25 @@ def generate_pdf_report(df: pd.DataFrame, config: dict) -> str:
         ("SPAN", (6, 0), (8, 0)),  # VOLTAGE spans 3 columns
         ("ALIGN", (0, 0), (-1, 0), "CENTER"),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8),
+        ("FONTSIZE", (0, 0), (-1, 0), 9),
 
         # Row 1: Sub-headers - gray background
         ("BACKGROUND", (0, 1), (-1, 1), colors.lightgrey),
         ("TEXTCOLOR", (0, 1), (-1, 1), colors.black),
         ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 1), (-1, 1), 8),
+        ("FONTSIZE", (0, 1), (-1, 1), 9),
         ("ALIGN", (0, 1), (-1, 1), "CENTER"),
 
         # Data rows styling
         ("ALIGN", (1, 2), (-1, -1), "CENTER"),
         ("ALIGN", (0, 2), (0, -1), "LEFT"),
-        ("FONTSIZE", (0, 2), (-1, -1), 8),
+        ("FONTSIZE", (0, 2), (-1, -1), 9),
 
         # Comfortable padding for all cells
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
 
         # Grid and borders
         ("GRID", (0, 0), (-1, -1), 0.25, colors.black),
@@ -335,7 +386,7 @@ def generate_pdf_report(df: pd.DataFrame, config: dict) -> str:
         ["LUBE OIL", "", "", ""]
     ]
 
-    footer_table = Table(footer_data, colWidths=[120, 90, 90, 90])
+    footer_table = Table(footer_data, colWidths=[150, 100, 100, 100])
     footer_table_style = TableStyle([
         # Header row (row 0)
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -591,7 +642,7 @@ def main(data: list = None):
     print("Generating Power Monitoring Report...")
     print(f"Date Range: {config['start_time']} to {config['end_time']}")
     print(f"Monitor ID: {config['monitor_id']}")
-    print(f"Engine: {config['engine_name']} ({config['engine_kw']})")
+    # print(f"Engine: {config['engine_id']} ({config['engine_kw']})")
     print("-" * 50)
 
     if data is None:
