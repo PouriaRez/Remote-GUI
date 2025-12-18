@@ -40,9 +40,11 @@ A complete config file has the following structure:
 ```json
 {
   "db_name": "database_name",
+  "display_name": "Report Display Name (optional)",
   "title": "Report Title",
   "subtitle": "Report Subtitle (optional)",
   "id": 1,
+  "monitor_id": "MONITOR_ID (optional)",
   "logo_url": "https://example.com/logo.png",
   "queries": {
     "query_name_1": "SQL query with placeholders",
@@ -75,6 +77,12 @@ A complete config file has the following structure:
 - **Description:** The database name (DBMS) to query from
 - **Example:** `"cos"`, `"production_db"`, `"analytics"`
 
+#### `display_name` (Optional)
+- **Type:** String
+- **Description:** Name displayed in the UI dropdown for selecting reports. If not provided, the system will automatically construct it from `title` and `subtitle` (or just `title` if no subtitle exists)
+- **Example:** `"Engine 4 Report"`, `"Main Power Plant - Evergy"`
+- **Note:** This field allows you to have a shorter, more user-friendly name in the dropdown while keeping the full title/subtitle for the PDF report
+
 #### `title` (Optional)
 - **Type:** String
 - **Description:** Main title displayed at the top of the first page
@@ -84,7 +92,13 @@ A complete config file has the following structure:
 - **Type:** String
 - **Description:** Subtitle displayed below the main title
 - **Example:** `"EVERGY INTERCONNECTION"`
-- **Note:** If `id` is set to `1` and a `monitor_id` is provided, the subtitle may be automatically formatted to show engine information (e.g., "Engine #2 (1500 kW)")
+- **Note:** If `id` is set to `0` and a `monitor_id` is provided, the subtitle may be automatically formatted to show engine information (e.g., "Engine #2 (1500 kW)")
+
+#### `monitor_id` (Optional)
+- **Type:** String
+- **Description:** Pre-configured monitor ID for this report. If specified, the UI will skip the monitor ID selection step and automatically use this value
+- **Example:** `"BG8"`, `"ENG1"`, `"KPL2"`
+- **Note:** When this field is present, users won't need to select a monitor ID manually - it will be used automatically from the config
 
 #### `id` (Optional)
 - **Type:** Integer

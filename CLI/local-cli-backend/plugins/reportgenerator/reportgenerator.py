@@ -40,19 +40,6 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 
-ENGINE_kW = { # kW values
-    2: 1500,
-    3: 850,
-    4: 980,
-    5: 1360,
-    6: 1365,
-    7: 2167,
-    8: 2500,
-    9: 1136,
-    10: 2500,
-    11: 3000,
-    12: 4432,
-}
 
 def _get_data(conn: str, command: str, destination: str = None):
     headers = {
@@ -400,56 +387,12 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
         ))
 
     # Subtitle (centered)
-    monitor_id = config.get('monitor_id')
-    
+    # monitor_id = config.get('monitor_id')
     if subtitle:
-        # Check if this config has special subtitle formatting based on monitor_id
-        # Handle config_id as either int or string
-        config_id_value = report_config.get('id') if report_config else None
-        config_id_int = int(config_id_value) if config_id_value is not None else None
-        
-        if config_id_int == 0 and monitor_id:
-            # Try to parse engine number from monitor_id (e.g., "ENG1" -> 1, "KPL2" -> 2)
-            match = re.match(r"([A-Za-z]+)(\d+)", str(monitor_id))
-            if match:
-                try:
-                    engine_str = match.group(1)
-                    engine_num = int(match.group(2))
-                    
-                    # Format subtitle with engine number
-                    updated_subtitle = f"Engine #{engine_num}"
-                    kw_value = ENGINE_kW.get(engine_num)
-                    if kw_value:
-                        updated_subtitle += f" ({kw_value} kW)"
-                    
-                    elements.append(Paragraph(
-                        f"<b>{updated_subtitle}</b>",
-                        centered_style
-                    ))
-                except (ValueError, AttributeError):
-                    # If parsing fails, fall back to default subtitle
-                    elements.append(Paragraph(
-                        f"<b>{subtitle}</b>",
-                        centered_style
-                    ))
-            else:
-                # Monitor ID doesn't match expected pattern, use default subtitle
-                elements.append(Paragraph(
-                    f"<b>{subtitle}</b>",
-                    centered_style
-                ))
-        else:
-            # Default subtitle display
-            if monitor_id:
-                elements.append(Paragraph(
-                    f"<b>{subtitle} - {monitor_id}</b>",
-                    centered_style
-                ))
-            else:
-                elements.append(Paragraph(
-                    f"<b>{subtitle}</b>",
-                    centered_style
-                ))
+        elements.append(Paragraph(
+            f"<b>{subtitle}</b>",
+            centered_style
+        ))
     
     # Add spacing after subtitle (only if subtitle was processed)
     if subtitle:

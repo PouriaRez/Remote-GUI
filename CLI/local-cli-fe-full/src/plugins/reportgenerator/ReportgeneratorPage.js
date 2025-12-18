@@ -10,6 +10,7 @@ export const pluginMetadata = {
 const ReportgeneratorPage = ({ node }) => {
   const [reports, setReports] = useState([]);
   const [selectedReport, setSelectedReport] = useState('');
+  const [selectedReportConfig, setSelectedReportConfig] = useState(null); // Store full config for selected report
   const [monitorIds, setMonitorIds] = useState([]);
   const [selectedMonitorId, setSelectedMonitorId] = useState('');
   
@@ -37,15 +38,28 @@ const ReportgeneratorPage = ({ node }) => {
     }
   }, [node]);
 
-  // Fetch monitor IDs when report is selected
+  // Fetch monitor IDs when report is selected (only if monitor_id not in config)
   useEffect(() => {
     if (selectedReport && node) {
-      fetchMonitorIds();
+      // Find the selected report config
+      const report = reports.find(r => r.name === selectedReport);
+      if (report) {
+        setSelectedReportConfig(report);
+        // Only fetch monitor IDs if monitor_id is not configured in the report
+        if (!report.monitor_id) {
+          fetchMonitorIds();
+        } else {
+          // Monitor ID is configured, clear monitor IDs and use the one from config
+          setMonitorIds([]);
+          setSelectedMonitorId(report.monitor_id);
+        }
+      }
     } else {
+      setSelectedReportConfig(null);
       setMonitorIds([]);
       setSelectedMonitorId('');
     }
-  }, [selectedReport, node]);
+  }, [selectedReport, node, reports]);
 
   // Helper function to convert Date to date format (YYYY-MM-DD)
   const formatDateForInput = (date) => {
@@ -159,8 +173,12 @@ const ReportgeneratorPage = ({ node }) => {
   };
 
   const handleGenerateReport = async () => {
-    if (!node || !selectedReport || !selectedMonitorId) {
-      setError('Please select Report and Monitor ID');
+    // Check if monitor_id is required (not in config)
+    const monitorIdRequired = !selectedReportConfig || !selectedReportConfig.monitor_id;
+    const effectiveMonitorId = selectedReportConfig?.monitor_id || selectedMonitorId;
+    
+    if (!node || !selectedReport || (monitorIdRequired && !effectiveMonitorId)) {
+      setError('Please select Report' + (monitorIdRequired ? ' and Monitor ID' : ''));
       return;
     }
 
@@ -186,7 +204,7 @@ const ReportgeneratorPage = ({ node }) => {
         time_column: timeColumn,
         start_time: backendStartTime,
         end_time: backendEndTime,
-        monitor_id: selectedMonitorId,
+        monitor_id: effectiveMonitorId, // Use from config if available, otherwise from selection
         page_orientation: pageOrientation
       };
 
@@ -225,7 +243,10 @@ const ReportgeneratorPage = ({ node }) => {
     }
   };
 
-  const canGenerateReport = node && selectedReport && selectedMonitorId && startTime && endTime;
+  // Check if monitor_id is required (not in config)
+  const monitorIdFromConfig = selectedReportConfig?.monitor_id;
+  const hasMonitorId = monitorIdFromConfig || selectedMonitorId;
+  const canGenerateReport = node && selectedReport && hasMonitorId && startTime && endTime;
 
   return (
     <div className="reportgenerator-page">
@@ -267,7 +288,7 @@ const ReportgeneratorPage = ({ node }) => {
               <option value="">-- Select Report --</option>
               {reports.map((report, idx) => (
                 <option key={idx} value={report.name}>
-                  {report.title} {report.subtitle ? `- ${report.subtitle}` : ''}
+                  {report.display_name || report.title || report.name}
                 </option>
               ))}
             </select>
@@ -275,8 +296,8 @@ const ReportgeneratorPage = ({ node }) => {
           </div>
         </div>
 
-        {/* Monitor ID Selection */}
-        {selectedReport && (
+        {/* Monitor ID Selection - Only show if not configured in report */}
+        {selectedReport && !selectedReportConfig?.monitor_id && (
           <div className="form-section">
             <h3>Step 2: Select Monitor ID</h3>
             <div className="form-group">
@@ -299,9 +320,25 @@ const ReportgeneratorPage = ({ node }) => {
             </div>
           </div>
         )}
+        
+        {/* Show configured monitor ID if present */}
+        {selectedReport && selectedReportConfig?.monitor_id && (
+          <div className="form-section">
+            <h3>Step 2: Monitor ID</h3>
+            <div className="form-group">
+              <label>Monitor ID (from config)</label>
+              <div className="config-monitor-id-display">
+                {selectedReportConfig.monitor_id}
+              </div>
+              <small className="form-text text-muted">
+                This monitor ID is configured in the report and will be used automatically.
+              </small>
+            </div>
+          </div>
+        )}
 
         {/* Report Parameters */}
-        {selectedReport && selectedMonitorId && (
+        {selectedReport && hasMonitorId && (
           <div className="form-section">
             <h3>Step 3: Configure Report Parameters</h3>
             

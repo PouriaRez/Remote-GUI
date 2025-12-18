@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 import json
-import json
+import re
 
 # Create the API router FIRST - this ensures it's always available even if imports fail
 api_router = APIRouter(prefix="/reportgenerator", tags=["Report Generator"])
@@ -109,7 +109,7 @@ class GenerateReportRequest(BaseModel):
     time_column: str
     start_time: str
     end_time: str
-    monitor_id: str
+    monitor_id: Optional[str] = None  # Optional - can come from config
     logo_path: Optional[str] = None
     output_dir: Optional[str] = "outputs"
     output_filename: Optional[str] = "power_monitoring_report"
@@ -165,21 +165,32 @@ def list_reports():
                                 except:
                                     config = {}
                         
+                        # Get display_name from config, or construct from title + subtitle
+                        display_name = config.get("display_name")
+                        if not display_name:
+                            title = config.get("title", report_name)
+                            subtitle = config.get("subtitle", "")
+                            display_name = f"{title} {subtitle}".strip() if subtitle else title
+                        
                         reports.append({
                             "name": report_name,
                             "filename": filename,
+                            "display_name": display_name,
                             "title": config.get("title", report_name),
                             "subtitle": config.get("subtitle", ""),
-                            "db_name": config.get("db_name", "")
+                            "db_name": config.get("db_name", ""),
+                            "monitor_id": config.get("monitor_id")  # Include monitor_id if configured
                         })
                     except Exception as e:
                         # If we can't parse, still include it but without metadata
                         reports.append({
                             "name": report_name,
                             "filename": filename,
+                            "display_name": report_name,
                             "title": report_name,
                             "subtitle": "",
-                            "db_name": ""
+                            "db_name": "",
+                            "monitor_id": None
                         })
         
         # Also include the template as a default option
@@ -188,15 +199,40 @@ def list_reports():
             try:
                 with open(template_path, 'r') as f:
                     config = json.load(f)
-                reports.insert(0, {
+                
+                # Get display_name from config, or construct from title + subtitle
+                display_name = config.get("display_name")
+                if not display_name:
+                    title = config.get("title", "Default Report")
+                    subtitle = config.get("subtitle", "")
+                    display_name = f"{title} {subtitle}".strip() if subtitle else title
+                
+                reports.append({
                     "name": "default",
                     "filename": "report_config_template.json",
+                    "display_name": display_name,
                     "title": config.get("title", "Default Report"),
                     "subtitle": config.get("subtitle", ""),
-                    "db_name": config.get("db_name", "")
+                    "db_name": config.get("db_name", ""),
+                    "monitor_id": config.get("monitor_id")
                 })
             except:
                 pass
+        
+        # Natural sort function to handle numbers in strings (e.g., "Engine 2" before "Engine 11")
+        def natural_sort_key(text):
+            """
+            Convert string into a list of strings and numbers for natural sorting.
+            Example: "Engine 11" -> ["engine ", 11] vs "Engine 2" -> ["engine ", 2]
+            """
+            if not text:
+                return []
+            def convert(text_part):
+                return int(text_part) if text_part.isdigit() else text_part.lower()
+            return [convert(c) for c in re.split(r'(\d+)', str(text))]
+        
+        # Sort reports using natural sort by display_name
+        reports.sort(key=lambda x: natural_sort_key(x.get("display_name", "")))
         
         return {"reports": reports}
     except Exception as e:
@@ -369,6 +405,14 @@ async def create_report(request: GenerateReportRequest):
         if not dbms:
             raise HTTPException(status_code=400, detail="Report config missing 'db_name' field")
         
+        # Get monitor_id from config if not provided in request
+        monitor_id = request.monitor_id or report_config.get('monitor_id')
+        if not monitor_id:
+            raise HTTPException(
+                status_code=400,
+                detail="monitor_id is required. Provide it in the request or configure it in the report config."
+            )
+        
         # Validate data exists
         if not check_data(conn=request.connection, dbms=dbms):
             raise HTTPException(
@@ -414,7 +458,7 @@ async def create_report(request: GenerateReportRequest):
                 
                 # Determine if monitor_id is needed (check if placeholder exists in query)
                 needs_monitor_id = '{monitor_id}' in query_template
-                monitor_id_param = request.monitor_id if needs_monitor_id else None
+                monitor_id_param = monitor_id if needs_monitor_id else None
                 
                 try:
                     query_data = execute_config_query(
@@ -509,7 +553,7 @@ async def create_report(request: GenerateReportRequest):
         config = {
             'start_time': request.start_time,
             'end_time': end_time,
-            'monitor_id': request.monitor_id,
+            'monitor_id': monitor_id,  # Use monitor_id from config or request
             'increment_unit': request.increment_unit,
             'increment_value': request.increment_value,
             'logo_path': request.logo_path or "https://tse1.mm.bing.net/th/id/OIP.7bJT74xSx81aYJgz-rl-TwAAAA?cb=ucfimg2&ucfimg=1&rs=1&pid=ImgDetMain&o=7&rm=3",

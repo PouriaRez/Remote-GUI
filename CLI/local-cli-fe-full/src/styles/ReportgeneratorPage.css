@@ -325,3 +325,25 @@ select.form-control {
   }
 }
 
+/* Config Monitor ID Display */
+.config-monitor-id-display {
+  padding: 10px 15px;
+  background: #e7f3ff;
+  border: 1px solid #b8daff;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #004085;
+  font-size: 14px;
+  display: inline-block;
+  min-width: 200px;
+}
+
+.form-text.text-muted {
+  display: block;
+  margin-top: 8px;
+  color: #6c757d;
+  font-size: 12px;
+  font-style: italic;
+}
+

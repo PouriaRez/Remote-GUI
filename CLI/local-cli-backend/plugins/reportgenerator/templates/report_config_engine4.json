@@ -1,8 +1,10 @@
 {
-  "id": 0,
+  "id": 10,
   "db_name": "cos",
+  "monitor_id": "DG4",
+  "display_name": "Engine 4",
   "title": "CITY OF SABETHA MUNICIPAL POWER PLANT",
-  "subtitle": "EVERGY INTERCONNECTION - Engine",
+  "subtitle": "Engine #4 (980 kW)",
   "logo_url": "https://tse1.mm.bing.net/th/id/OIP.7bJT74xSx81aYJgz-rl-TwAAAA?cb=ucfimg2&ucfimg=1&rs=1&pid=ImgDetMain&o=7&rm=3",
   "queries": {
     "power_plant": "SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp)::ljust(19) AS min_ts, MAX(timestamp)::ljust(19) AS max_ts, AVG(realpower) AS kw, AVG(powerfactor) AS pf, AVG(a_current) AS amp_1, AVG(b_current) AS amp_2, AVG(c_current) AS amp_3 FROM pp_pm WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' AND monitor_id='{monitor_id}' GROUP BY monitor_id ORDER BY min_ts"
