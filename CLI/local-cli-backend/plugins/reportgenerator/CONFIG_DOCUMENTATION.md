@@ -375,7 +375,7 @@ Each column definition object has the following fields:
 
 #### `footer_fields` (Optional)
 - **Type:** Array of Strings
-- **Description:** Labels for footer fields (displayed as empty boxes at bottom of report)
+- **Description:** Row labels for the footer table (displayed in the first column)
 - **Example:**
 ```json
 "footer_fields": [
@@ -386,6 +386,20 @@ Each column definition object has the following fields:
   "KWH OUT"
 ]
 ```
+
+#### `footer_columns` (Optional)
+- **Type:** Array of Strings
+- **Description:** Column headers for the footer table (displayed in the header row)
+- **Default:** `["Previous", "Present", "Units"]` if not specified
+- **Example:**
+```json
+"footer_columns": [
+  "Previous",
+  "Present",
+  "Units"
+]
+```
+- **Note:** The footer table will have one row for each `footer_fields` entry, with empty cells for each `footer_columns` entry. Users can fill in these values manually on the printed report.
 
 ---
 

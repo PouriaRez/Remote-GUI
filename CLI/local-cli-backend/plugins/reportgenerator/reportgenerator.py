@@ -544,6 +544,9 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
         scale_factor = available_width / total_col_width
         col_widths = [w * scale_factor for w in col_widths]
     
+    # Store the final table width for footer matching
+    main_table_width = sum(col_widths)
+    
     # Create table with calculated column widths
     table = Table(table_data, repeatRows=2, colWidths=col_widths)
 
@@ -611,8 +614,9 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
 
     elements.append(table)
 
-    # Footer section - 2 columns, 5 rows (2 blank lines above)
-    elements.append(Spacer(1, 24))  # 2 blank lines
+    # Footer section - Table with column headers (Previous, Present, Units) and row labels
+    # Use smaller spacing to keep it compact
+    elements.append(Spacer(1, 12))  # Reduced spacing
     
     # Get footer fields from config or use defaults
     footer_fields = report_config.get('footer_fields', [
@@ -623,33 +627,56 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
         "KWH OUT"
     ])
     
-    footer_data = [[field, ""] for field in footer_fields]
-
-    # Adjust footer table width based on orientation
-    if page_orientation == 'portrait':
-        footer_col_width = min(120, (available_width - 20) / 2)
-    else:
-        footer_col_width = 140
+    # Get footer column headers from config or use defaults
+    footer_columns = report_config.get('footer_columns', ["Previous", "Present", "Units"])
     
-    footer_table = Table(footer_data, colWidths=[footer_col_width, footer_col_width])
+    # Build footer table data
+    # Row 0: Empty cell + column headers
+    footer_data = [[""] + footer_columns]
+    
+    # Subsequent rows: footer field name + empty cells for each column
+    for field in footer_fields:
+        footer_data.append([field] + [""] * len(footer_columns))
+
+    # Calculate footer table width to match main table width
+    # Use the same total width as the main table (calculated above)
+    
+    # Calculate footer column widths proportionally
+    # First column (row labels) gets ~40% of width, rest split equally
+    num_footer_cols = len(footer_columns) + 1  # +1 for label column
+    label_width = main_table_width * 0.4
+    data_col_width = (main_table_width - label_width) / len(footer_columns)
+    footer_col_widths = [label_width] + [data_col_width] * len(footer_columns)
+    
+    footer_table = Table(footer_data, colWidths=footer_col_widths)
     footer_table_style = TableStyle([
-        # First column (labels) - bold, left-aligned
-        ("ALIGN", (0, 0), (0, -1), "LEFT"),
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
+        # Row 0 (column headers) - bold, centered, gray background
+        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 7),  # Smaller font
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        
+        # First column (row labels) - bold, left-aligned, gray background
+        ("ALIGN", (0, 1), (0, -1), "LEFT"),
+        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 1), (0, -1), 7),  # Smaller font
+        ("BACKGROUND", (0, 1), (0, -1), colors.lightgrey),
 
-        # Second column (empty boxes) - centered
-        ("ALIGN", (1, 0), (1, -1), "CENTER"),
+        # Data columns (Previous, Present, Units) - centered
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("FONTSIZE", (1, 1), (-1, -1), 7),  # Smaller font
 
-        # All cells
+        # All cells - reduced padding for compactness
         ("BOX", (0, 0), (-1, -1), 1, colors.black),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),  # Reduced padding
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        
+        # Thicker line below header row
+        ("LINEBELOW", (0, 0), (-1, 0), 2, colors.black),
     ])
     footer_table.setStyle(footer_table_style)
     footer_table.hAlign = 'LEFT'  # Left-justify the footer table

@@ -33,13 +33,6 @@
         "format": "int"
       },
       {
-        "name": "KV",
-        "source": ["a_kv", "b_kv", "c_kv"],
-        "source_query": "power_plant",
-        "transform": "average",
-        "format": "int"
-      },
-      {
         "name": "PF",
         "source": "pf",
         "source_query": "power_plant",
@@ -98,8 +91,8 @@
       }
     ],
     "column_groups": {
-      "AMPS": [4, 5, 6],
-      "VOLTAGE": [7, 8, 9]
+      "AMPS": [3, 4, 5],
+      "VOLTAGE": [6, 7, 8]
     },
     "column_widths": {
       "portrait": [80, 35, 35, 30, 30, 30, 30, 35, 35, 35, 30, 30],
@@ -107,11 +100,16 @@
     }
   },
   "footer_fields": [
-    "DAILY READING",
-    "KWH IN",
-    "TOTAL GENERATION",
-    "TOTAL KW",
-    "KWH OUT"
+    "KHW IN",
+    "TIME METER",
+    "FUEL OIL METER",
+    "GAS EAST METER",
+    "S. PLANT KWHS",
+    "LUBE OIL"
+  ],
+  "footer_columns": [
+    "PREVIOUS",
+    "PRESENT",
+    "UNITS"
   ]
 }
-

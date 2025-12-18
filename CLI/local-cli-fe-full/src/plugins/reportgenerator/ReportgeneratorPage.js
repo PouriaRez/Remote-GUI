@@ -251,7 +251,7 @@ const ReportgeneratorPage = ({ node }) => {
   return (
     <div className="reportgenerator-page">
       <div className="reportgenerator-header">
-        <h2>Power Monitoring Report Generator</h2>
+        <h2>Report Generator</h2>
         {node && (
           <div className="selected-node-info">
             <span className="node-label">Node:</span>
