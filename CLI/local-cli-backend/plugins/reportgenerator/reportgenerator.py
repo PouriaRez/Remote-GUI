@@ -628,7 +628,7 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
     ])
     
     # Get footer column headers from config or use defaults
-    footer_columns = report_config.get('footer_columns', ["Previous", "Present", "Units"])
+    footer_columns = report_config.get('footer_columns', [""])
     
     # Build footer table data
     # Row 0: Empty cell + column headers
