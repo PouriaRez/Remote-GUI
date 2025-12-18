@@ -100,10 +100,8 @@ def image_download(image_url):
         with open(temp_file, 'wb') as f:
             f.write(response.content)
         
-        print(f"Downloaded logo from {image_url_path} to {temp_file}")
         return temp_file
-    except Exception as error:
-        print(f"Warning: Could not download image from {image_url_path}: {error}")
+    except Exception:
         # Return None instead of raising, so report can still be generated
         return None
 
@@ -387,8 +385,7 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]))
             elements.append(header_table)
-        except Exception as e:
-            print(f"Warning: Could not add logo: {e}")
+        except Exception:
             elements.append(Paragraph(timestamp, styles["Normal"]))
     else:
         elements.append(Paragraph(timestamp, styles["Normal"]))
@@ -404,30 +401,59 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
 
     # Subtitle (centered)
     monitor_id = config.get('monitor_id')
-    if subtitle and config_id == 1 and monitor_id:
-        match = re.match(r"([A-Za-z]+)(\d+)", monitor_id)
-        engine_str = match.group(1)
-        engine_num = int(match.group(2))
-
-        updated_subtitle = f"Engine #{engine_num}" if engine_num else f"Engine {engine_str}"
-        kw_value = ENGINE_kW.get(engine_num)
-        if kw_value:
-            updated_subtitle += f"({kw_value} kW)"
-        elements.append(Paragraph(
-            f"<b>{updated_subtitle}</b>",
-            centered_style
-        ))
-
-        print(updated_subtitle)
-    elif subtitle:
-        elements.append(Paragraph(
-            f"<b>{subtitle} - {monitor_id}</b>" if monitor_id else f"<b>{subtitle}</b>",
-            centered_style
-        ))
-
-
     
-    elements.append(Spacer(1, 6))
+    if subtitle:
+        # Check if this config has special subtitle formatting based on monitor_id
+        # Handle config_id as either int or string
+        config_id_value = report_config.get('id') if report_config else None
+        config_id_int = int(config_id_value) if config_id_value is not None else None
+        
+        if config_id_int == 0 and monitor_id:
+            # Try to parse engine number from monitor_id (e.g., "ENG1" -> 1, "KPL2" -> 2)
+            match = re.match(r"([A-Za-z]+)(\d+)", str(monitor_id))
+            if match:
+                try:
+                    engine_str = match.group(1)
+                    engine_num = int(match.group(2))
+                    
+                    # Format subtitle with engine number
+                    updated_subtitle = f"Engine #{engine_num}"
+                    kw_value = ENGINE_kW.get(engine_num)
+                    if kw_value:
+                        updated_subtitle += f" ({kw_value} kW)"
+                    
+                    elements.append(Paragraph(
+                        f"<b>{updated_subtitle}</b>",
+                        centered_style
+                    ))
+                except (ValueError, AttributeError):
+                    # If parsing fails, fall back to default subtitle
+                    elements.append(Paragraph(
+                        f"<b>{subtitle}</b>",
+                        centered_style
+                    ))
+            else:
+                # Monitor ID doesn't match expected pattern, use default subtitle
+                elements.append(Paragraph(
+                    f"<b>{subtitle}</b>",
+                    centered_style
+                ))
+        else:
+            # Default subtitle display
+            if monitor_id:
+                elements.append(Paragraph(
+                    f"<b>{subtitle} - {monitor_id}</b>",
+                    centered_style
+                ))
+            else:
+                elements.append(Paragraph(
+                    f"<b>{subtitle}</b>",
+                    centered_style
+                ))
+    
+    # Add spacing after subtitle (only if subtitle was processed)
+    if subtitle:
+        elements.append(Spacer(1, 6))
 
     # Get table configuration from config
     table_config = report_config.get('table_columns', {}) if report_config else {}
@@ -690,7 +716,6 @@ def generate_report(merged_df, config, report_config=None, page_orientation='lan
     # Build the document - page numbers will be added via callbacks
     doc.build(elements)
 
-    print(f"PDF file created: {pdf_path}")
     return pdf_path
 
 

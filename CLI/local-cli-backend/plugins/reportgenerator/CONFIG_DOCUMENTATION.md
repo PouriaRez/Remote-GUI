@@ -42,6 +42,7 @@ A complete config file has the following structure:
   "db_name": "database_name",
   "title": "Report Title",
   "subtitle": "Report Subtitle (optional)",
+  "id": 1,
   "logo_url": "https://example.com/logo.png",
   "queries": {
     "query_name_1": "SQL query with placeholders",
@@ -83,6 +84,13 @@ A complete config file has the following structure:
 - **Type:** String
 - **Description:** Subtitle displayed below the main title
 - **Example:** `"EVERGY INTERCONNECTION"`
+- **Note:** If `id` is set to `1` and a `monitor_id` is provided, the subtitle may be automatically formatted to show engine information (e.g., "Engine #2 (1500 kW)")
+
+#### `id` (Optional)
+- **Type:** Integer
+- **Description:** Config identifier for special formatting rules
+- **Example:** `1` (for engine-specific formatting)
+- **Note:** Currently, `id: 1` enables special subtitle formatting that extracts engine numbers from monitor_id
 
 #### `logo_url` (Optional)
 - **Type:** String (URL or file path)
@@ -382,11 +390,23 @@ Each column definition object has the following fields:
      "db_name": "your_database",
      "title": "Your Report Title",
      "subtitle": "Optional Subtitle",
+     "id": 1,
      "logo_url": "https://example.com/logo.png",
      "queries": {},
-     "data_merging": {},
+     "data_merging": {
+       "primary_query": "query_name",
+       "join_key": "hour",
+       "join_method": "left",
+       "timestamp_field": "min_ts",
+       "timestamp_floor": "h"
+     },
      "table_columns": {
-       "column_definitions": []
+       "column_definitions": [],
+       "column_groups": {},
+       "column_widths": {
+         "portrait": [],
+         "landscape": []
+       }
      },
      "footer_fields": []
    }
@@ -457,6 +477,7 @@ Each column definition object has the following fields:
         "format": "int"
       }
     ],
+    "column_groups": {},
     "column_widths": {
       "portrait": [100, 80, 80],
       "landscape": [150, 100, 100]
@@ -469,6 +490,52 @@ Each column definition object has the following fields:
 }
 ```
 
+### Example: Engine Report with Special Subtitle Formatting
+
+```json
+{
+  "db_name": "cos",
+  "title": "Power Plant Report",
+  "subtitle": "Engine Monitoring",
+  "id": 1,
+  "logo_url": "https://example.com/logo.png",
+  "queries": {
+    "engine_data": "SELECT increments({increment_unit}, {increment_value}, {time_column}), monitor_id, MIN(timestamp) AS min_ts, AVG(power) AS kw FROM engines WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' AND monitor_id='{monitor_id}' GROUP BY monitor_id ORDER BY min_ts"
+  },
+  "data_merging": {
+    "primary_query": "engine_data",
+    "join_key": "hour",
+    "join_method": "left",
+    "timestamp_field": "min_ts",
+    "timestamp_floor": "h"
+  },
+  "table_columns": {
+    "column_definitions": [
+      {
+        "name": "Time",
+        "source": "min_ts",
+        "source_query": "engine_data",
+        "transform": "datetime",
+        "format": "datetime"
+      },
+      {
+        "name": "Power (kW)",
+        "source": "kw",
+        "source_query": "engine_data",
+        "transform": "round",
+        "format": "int"
+      }
+    ],
+    "column_widths": {
+      "portrait": [100, 100],
+      "landscape": [150, 120]
+    }
+  }
+}
+```
+
+**Note:** When `id: 1` is set and a `monitor_id` like "ENG2" or "KPL3" is provided, the subtitle will automatically format as "Engine #2 (1500 kW)" or "Engine #3 (850 kW)" based on the engine number extracted from the monitor_id.
+
 ---
 
 ## Advanced Examples
@@ -479,6 +546,7 @@ Each column definition object has the following fields:
 {
   "db_name": "production",
   "title": "Production Monitoring Report",
+  "subtitle": "Multi-Source Data Analysis",
   "queries": {
     "production": "SELECT increments({increment_unit}, {increment_value}, {time_column}), MIN(timestamp) AS min_ts, SUM(units) AS total_units, AVG(efficiency) AS eff FROM production WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' AND monitor_id='{monitor_id}' GROUP BY monitor_id",
     "quality": "SELECT increments({increment_unit}, {increment_value}, {time_column}), MIN(timestamp) AS min_ts, AVG(defect_rate) AS defects FROM quality WHERE {time_column} >= '{start_time}' AND {time_column} < '{end_time}' GROUP BY monitor_id",
@@ -544,7 +612,11 @@ Each column definition object has the following fields:
       "portrait": [100, 60, 70, 80, 80],
       "landscape": [150, 80, 90, 100, 100]
     }
-  }
+  },
+  "footer_fields": [
+    "TOTAL UNITS",
+    "AVERAGE EFFICIENCY"
+  ]
 }
 ```
 
@@ -696,6 +768,21 @@ This multiplies the value by 100 to convert to percentage.
 
 ## Quick Reference
 
+### Required Fields
+- `db_name` - Database name
+- `queries` - At least one query definition
+- `data_merging` - Merge configuration
+- `table_columns.column_definitions` - At least one column definition
+
+### Optional Fields
+- `title` - Report title
+- `subtitle` - Report subtitle
+- `id` - Config identifier (for special formatting)
+- `logo_url` - Logo URL or path
+- `table_columns.column_groups` - Column grouping
+- `table_columns.column_widths` - Custom column widths
+- `footer_fields` - Footer field labels
+
 ### Transform Types
 - `none` - No transformation
 - `round` - Round to integer
@@ -721,6 +808,15 @@ This multiplies the value by 100 to convert to percentage.
 - `"h"` - Hour
 - `"min"` - Minute
 - `"D"` - Day
+
+### Special Config Features
+
+#### Engine-Specific Formatting (`id: 1`)
+When `id: 1` is set in the config and a `monitor_id` is provided:
+- The system attempts to extract an engine number from the monitor_id (e.g., "ENG2" → 2, "KPL3" → 3)
+- The subtitle is automatically formatted as "Engine #N (X kW)" where N is the engine number and X is the kW rating
+- Supported engine numbers and their kW values are defined in the system
+- If parsing fails, falls back to default subtitle display
 
 ---
 

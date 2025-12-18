@@ -224,9 +224,7 @@ async def list_monitor_ids(request: MonitorIdsRequest):
                 status_code=500, 
                 detail="Report generator module not available. Please install required dependencies: pandas, openpyxl, reportlab, requests"
             )
-        print(f"Calling get_monitor_ids with conn={request.connection}, dbms={request.dbms}")
         monitor_ids = get_monitor_ids(conn=request.connection, dbms=request.dbms)
-        print(f"Successfully got {len(monitor_ids)} monitor IDs")
         return {
             "success": True,
             "monitor_ids": monitor_ids,
@@ -533,20 +531,11 @@ async def create_report(request: GenerateReportRequest):
         try:
             if logo_url:
                 config['logo_path'] = image_download(logo_url)
-                print(f"Logo downloaded to: {config['logo_path']}")
             else:
                 config['logo_path'] = None
-        except Exception as e:
-            print(f"Warning: Could not download logo: {e}")
+        except Exception:
             config['logo_path'] = None
-
-        # Debug: Print report config info
-        print(f"Generating report with config:")
-        print(f"  Title: {report_config.get('title', 'N/A')}")
-        print(f"  Subtitle: {report_config.get('subtitle', 'N/A')}")
-        print(f"  Logo URL: {report_config.get('logo_url', 'N/A')}")
-        print(f"  Logo path: {config.get('logo_path', 'N/A')}")
-
+        
         # Generate report with config and orientation
         page_orientation = request.page_orientation or 'landscape'
         pdf_path = generate_report(merged_df, config, report_config=report_config, page_orientation=page_orientation)
