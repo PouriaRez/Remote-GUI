@@ -1,10 +1,13 @@
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import os
 import json
 import re
+import zipfile
+import tempfile
+from datetime import datetime
 
 # Create the API router FIRST - this ensures it's always available even if imports fail
 api_router = APIRouter(prefix="/reportgenerator", tags=["Report Generator"])
@@ -599,4 +602,351 @@ async def create_report(request: GenerateReportRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {str(e)}")
+
+@api_router.get("/export-configs")
+async def export_report_configs():
+    """Export all report configuration files as a ZIP archive"""
+    try:
+        templates_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'reportgenerator',
+            'templates'
+        )
+        
+        if not os.path.exists(templates_dir):
+            raise HTTPException(status_code=404, detail="Templates directory not found")
+        
+        # Create a temporary ZIP file
+        temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_zip_path = temp_zip.name
+        temp_zip.close()
+        
+        file_count = 0
+        
+        try:
+            with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Read all JSON and YAML files in templates directory
+                for filename in os.listdir(templates_dir):
+                    if filename.endswith('.json') or filename.endswith('.yaml') or filename.endswith('.yml'):
+                        file_path = os.path.join(templates_dir, filename)
+                        
+                        try:
+                            # Add the file to the ZIP archive
+                            zipf.write(file_path, filename)
+                            file_count += 1
+                        except Exception as e:
+                            # Skip files that can't be read
+                            print(f"Warning: Could not add {filename} to ZIP: {e}")
+                            continue
+            
+            if file_count == 0:
+                os.remove(temp_zip_path)
+                raise HTTPException(status_code=404, detail="No config files found to export")
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            zip_filename = f"report-configs-export-{timestamp}.zip"
+            
+            # Return the ZIP file
+            return FileResponse(
+                temp_zip_path,
+                media_type='application/zip',
+                filename=zip_filename,
+                headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
+            )
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(temp_zip_path):
+                os.remove(temp_zip_path)
+            raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export configs: {str(e)}")
+
+@api_router.post("/import-config-check")
+async def import_config_check(
+    files: List[UploadFile] = File(...)
+):
+    """Check for conflicts before importing - returns list of files that already exist"""
+    try:
+        if not files or len(files) == 0:
+            raise HTTPException(status_code=400, detail="No files provided")
+        
+        # Get templates directory
+        templates_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'reportgenerator',
+            'templates'
+        )
+        
+        if not os.path.exists(templates_dir):
+            os.makedirs(templates_dir, exist_ok=True)
+        
+        conflicting_files = []
+        all_files = []
+        
+        # Process each uploaded file to find conflicts
+        for file in files:
+            if not file.filename:
+                continue
+            
+            # Check if it's a ZIP file
+            if file.filename.endswith('.zip'):
+                try:
+                    # Read ZIP content
+                    content = await file.read()
+                    
+                    # Create temporary file for ZIP
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
+                        temp_zip.write(content)
+                        temp_zip_path = temp_zip.name
+                    
+                    try:
+                        # Extract ZIP contents
+                        with zipfile.ZipFile(temp_zip_path, 'r') as zipf:
+                            for zip_info in zipf.namelist():
+                                # Only process JSON and YAML files
+                                if not (zip_info.endswith('.json') or zip_info.endswith('.yaml') or zip_info.endswith('.yml')):
+                                    continue
+                                
+                                # Get the filename (handle subdirectories)
+                                filename = os.path.basename(zip_info)
+                                if not filename:
+                                    continue
+                                
+                                # Sanitize filename
+                                safe_filename = filename
+                                if not safe_filename.endswith('.json') and not safe_filename.endswith('.yaml') and not safe_filename.endswith('.yml'):
+                                    continue
+                                
+                                # Ensure filename doesn't conflict with template file
+                                if safe_filename == 'report_config_template.json':
+                                    safe_filename = 'imported_report_config_template.json'
+                                
+                                file_path = os.path.join(templates_dir, safe_filename)
+                                all_files.append(safe_filename)
+                                
+                                # Check if file exists
+                                if os.path.exists(file_path):
+                                    conflicting_files.append(safe_filename)
+                    finally:
+                        # Clean up temp ZIP file
+                        if os.path.exists(temp_zip_path):
+                            os.remove(temp_zip_path)
+                except Exception:
+                    pass
+            
+            # Handle JSON/YAML files
+            elif file.filename.endswith('.json') or file.filename.endswith('.yaml') or file.filename.endswith('.yml'):
+                # Determine filename
+                safe_filename = file.filename
+                # Ensure it has the right extension
+                if not (safe_filename.endswith('.json') or safe_filename.endswith('.yaml') or safe_filename.endswith('.yml')):
+                    safe_filename = os.path.splitext(safe_filename)[0] + '.json'
+                
+                # Ensure filename doesn't conflict with template file
+                if safe_filename == 'report_config_template.json':
+                    safe_filename = 'imported_report_config_template.json'
+                
+                file_path = os.path.join(templates_dir, safe_filename)
+                all_files.append(safe_filename)
+                
+                # Check if file exists
+                if os.path.exists(file_path):
+                    conflicting_files.append(safe_filename)
+        
+        return JSONResponse(content={
+            "success": True,
+            "conflicting_files": conflicting_files,
+            "all_files": all_files,
+            "has_conflicts": len(conflicting_files) > 0
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check conflicts: {str(e)}")
+
+@api_router.post("/import-config")
+async def import_report_config(
+    files: List[UploadFile] = File(...),
+    overwrite_files: Optional[str] = None  # JSON string of files to overwrite
+):
+    """Import report configuration files - supports ZIP archives, multiple JSON files, or single JSON file"""
+    try:
+        if not files or len(files) == 0:
+            raise HTTPException(status_code=400, detail="No files provided")
+        
+        # Parse overwrite_files if provided
+        files_to_overwrite = set()
+        if overwrite_files:
+            try:
+                files_to_overwrite = set(json.loads(overwrite_files))
+            except:
+                pass
+        
+        # Get templates directory
+        templates_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'reportgenerator',
+            'templates'
+        )
+        
+        if not os.path.exists(templates_dir):
+            os.makedirs(templates_dir, exist_ok=True)
+        
+        imported_files = []
+        errors = []
+        skipped_files = []
+        
+        # Process each uploaded file
+        for file in files:
+            if not file.filename:
+                errors.append("One or more files have no filename")
+                continue
+            
+            # Check if it's a ZIP file
+            if file.filename.endswith('.zip'):
+                try:
+                    # Read ZIP content
+                    content = await file.read()
+                    
+                    # Create temporary file for ZIP
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as temp_zip:
+                        temp_zip.write(content)
+                        temp_zip_path = temp_zip.name
+                    
+                    try:
+                        # Extract ZIP contents
+                        with zipfile.ZipFile(temp_zip_path, 'r') as zipf:
+                            for zip_info in zipf.namelist():
+                                # Only process JSON and YAML files
+                                if not (zip_info.endswith('.json') or zip_info.endswith('.yaml') or zip_info.endswith('.yml')):
+                                    continue
+                                
+                                # Get the filename (handle subdirectories)
+                                filename = os.path.basename(zip_info)
+                                if not filename:
+                                    continue
+                                
+                                # Sanitize filename
+                                safe_filename = filename
+                                if not safe_filename.endswith('.json') and not safe_filename.endswith('.yaml') and not safe_filename.endswith('.yml'):
+                                    continue
+                                
+                                # Ensure filename doesn't conflict with template file
+                                if safe_filename == 'report_config_template.json':
+                                    safe_filename = 'imported_report_config_template.json'
+                                
+                                file_path = os.path.join(templates_dir, safe_filename)
+                                
+                                # Check if file exists and if user wants to overwrite it
+                                if os.path.exists(file_path):
+                                    if safe_filename not in files_to_overwrite:
+                                        skipped_files.append(safe_filename)
+                                        continue
+                                
+                                try:
+                                    # Read file content from ZIP
+                                    file_content = zipf.read(zip_info)
+                                    
+                                    # Write directly to target path
+                                    with open(file_path, 'wb') as f:
+                                        f.write(file_content)
+                                    
+                                    imported_files.append(safe_filename)
+                                except Exception as e:
+                                    errors.append(f"Failed to extract '{filename}': {str(e)}")
+                    finally:
+                        # Clean up temp ZIP file
+                        if os.path.exists(temp_zip_path):
+                            os.remove(temp_zip_path)
+                except zipfile.BadZipFile:
+                    errors.append(f"'{file.filename}' is not a valid ZIP file")
+                except Exception as e:
+                    errors.append(f"Failed to process ZIP file '{file.filename}': {str(e)}")
+            
+            # Handle JSON/YAML files
+            elif file.filename.endswith('.json') or file.filename.endswith('.yaml') or file.filename.endswith('.yml'):
+                try:
+                    # Read file content
+                    content = await file.read()
+                    
+                    # Parse JSON or YAML
+                    try:
+                        if file.filename.endswith('.json'):
+                            file_data = json.loads(content.decode('utf-8'))
+                        else:
+                            # Try YAML
+                            try:
+                                import yaml
+                                file_data = yaml.safe_load(content.decode('utf-8'))
+                            except ImportError:
+                                errors.append(f"YAML support not available for '{file.filename}'")
+                                continue
+                    except (json.JSONDecodeError, Exception) as e:
+                        errors.append(f"Invalid format in '{file.filename}': {str(e)}")
+                        continue
+                    
+                    # Validate it's a dict (config object)
+                    if not isinstance(file_data, dict):
+                        errors.append(f"'{file.filename}' does not contain a valid config object")
+                        continue
+                    
+                    # Determine filename
+                    safe_filename = file.filename
+                    # Ensure it has the right extension
+                    if not (safe_filename.endswith('.json') or safe_filename.endswith('.yaml') or safe_filename.endswith('.yml')):
+                        safe_filename = os.path.splitext(safe_filename)[0] + '.json'
+                    
+                    # Ensure filename doesn't conflict with template file
+                    if safe_filename == 'report_config_template.json':
+                        safe_filename = 'imported_report_config_template.json'
+                    
+                    file_path = os.path.join(templates_dir, safe_filename)
+                    
+                    # Check if file exists and if user wants to overwrite it
+                    if os.path.exists(file_path):
+                        if safe_filename not in files_to_overwrite:
+                            skipped_files.append(safe_filename)
+                            continue
+                    
+                    # Write config to file
+                    try:
+                        with open(file_path, 'w') as f:
+                            if safe_filename.endswith('.json'):
+                                json.dump(file_data, f, indent=2)
+                            else:
+                                import yaml
+                                yaml.dump(file_data, f, default_flow_style=False, sort_keys=False)
+                        imported_files.append(safe_filename)
+                    except Exception as e:
+                        errors.append(f"Failed to write '{safe_filename}': {str(e)}")
+                except Exception as e:
+                    errors.append(f"Failed to process '{file.filename}': {str(e)}")
+            else:
+                errors.append(f"Unsupported file type: '{file.filename}'. Only .zip, .json, .yaml, and .yml files are supported")
+        
+        # Prepare response
+        if errors and not imported_files:
+            raise HTTPException(status_code=400, detail=f"Import failed: {'; '.join(errors)}")
+        
+        message = f"Imported {len(imported_files)} config file(s)"
+        if skipped_files:
+            message += f", skipped {len(skipped_files)} file(s)"
+        if errors:
+            message += f", {len(errors)} error(s)"
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": message,
+            "imported_files": imported_files,
+            "skipped_files": skipped_files if skipped_files else None,
+            "errors": errors if errors else None,
+            "count": len(imported_files)
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to import config: {str(e)}")
 
