@@ -1,5 +1,6 @@
 {
   "plugin_order": [
+    "grafana",
     "reportgenerator",
     "nodecheck",
     "calculator"

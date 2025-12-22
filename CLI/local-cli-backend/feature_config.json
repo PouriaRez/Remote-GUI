@@ -57,6 +57,10 @@
     "calculator": {
       "enabled": false,
       "description": "Calculator Plugin"
+    },
+    "grafana": {
+      "enabled": true,
+      "description": "Grafana Dashboard Plugin"
     }
   },
   "version": "1.0.0"
