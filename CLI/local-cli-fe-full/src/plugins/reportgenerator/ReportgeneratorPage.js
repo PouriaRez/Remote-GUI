@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../../styles/ReportgeneratorPage.css';
 
 // Plugin metadata - used by the plugin loader
@@ -40,36 +40,6 @@ const ReportgeneratorPage = ({ node }) => {
   const [filesToOverwrite, setFilesToOverwrite] = useState(new Set());
   const [replaceAll, setReplaceAll] = useState(false);
 
-  // Fetch available reports on component mount
-  useEffect(() => {
-    if (node) {
-      fetchReports();
-    }
-  }, [node]);
-
-  // Fetch monitor IDs when report is selected (only if monitor_id not in config)
-  useEffect(() => {
-    if (selectedReport && node) {
-      // Find the selected report config
-      const report = reports.find(r => r.name === selectedReport);
-      if (report) {
-        setSelectedReportConfig(report);
-        // Only fetch monitor IDs if monitor_id is not configured in the report
-        if (!report.monitor_id) {
-          fetchMonitorIds();
-        } else {
-          // Monitor ID is configured, clear monitor IDs and use the one from config
-          setMonitorIds([]);
-          setSelectedMonitorId(report.monitor_id);
-        }
-      }
-    } else {
-      setSelectedReportConfig(null);
-      setMonitorIds([]);
-      setSelectedMonitorId('');
-    }
-  }, [selectedReport, node, reports]);
-
   // Helper function to convert Date to date format (YYYY-MM-DD)
   const formatDateForInput = (date) => {
     const year = date.getFullYear();
@@ -98,7 +68,8 @@ const ReportgeneratorPage = ({ node }) => {
     if (!endTime) {
       setEndTime(formatDateForInput(now));
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount to set initial default values
 
   // Cleanup blob URL when component unmounts or PDF changes
   useEffect(() => {
@@ -144,9 +115,9 @@ const ReportgeneratorPage = ({ node }) => {
     }
   };
 
-  const fetchMonitorIds = async () => {
+  const fetchMonitorIds = useCallback(async () => {
     if (!selectedReport || !node) return;
-    
+
     try {
       setLoadingMonitorIds(true);
       const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
@@ -179,7 +150,37 @@ const ReportgeneratorPage = ({ node }) => {
     } finally {
       setLoadingMonitorIds(false);
     }
-  };
+  }, [selectedReport, node]);
+
+  // Fetch available reports on component mount
+  useEffect(() => {
+    if (node) {
+      fetchReports();
+    }
+  }, [node]);
+
+  // Fetch monitor IDs when report is selected (only if monitor_id not in config)
+  useEffect(() => {
+    if (selectedReport && node) {
+      // Find the selected report config
+      const report = reports.find(r => r.name === selectedReport);
+      if (report) {
+        setSelectedReportConfig(report);
+        // Only fetch monitor IDs if monitor_id is not configured in the report
+        if (!report.monitor_id) {
+          fetchMonitorIds();
+        } else {
+          // Monitor ID is configured, clear monitor IDs and use the one from config
+          setMonitorIds([]);
+          setSelectedMonitorId(report.monitor_id);
+        }
+      }
+    } else {
+      setSelectedReportConfig(null);
+      setMonitorIds([]);
+      setSelectedMonitorId('');
+    }
+  }, [selectedReport, node, reports, fetchMonitorIds]);
 
   const handleGenerateReport = async () => {
     // Check if monitor_id is required (not in config)

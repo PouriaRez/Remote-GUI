@@ -1,0 +1,7 @@
+{
+  "plugin_order": [
+    "reportgenerator",
+    "nodecheck",
+    "calculator"
+  ]
+}

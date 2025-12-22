@@ -8,7 +8,7 @@ sys.path.append(BASE_DIR)
 
 from security.security_router import security_router
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -19,7 +19,15 @@ from classes import *
 from sql_router import sql_router
 from file_auth_router import file_auth_router
 # Import plugin loader
-from plugins.loader import load_plugins
+from plugins.loader import load_plugins, get_plugin_order
+# Import feature config loader
+from feature_config_loader import (
+    is_feature_enabled, 
+    is_plugin_enabled,
+    get_enabled_features,
+    get_enabled_plugins,
+    load_feature_config
+)
 
 
 
@@ -42,15 +50,148 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Include routers
+# Load feature configuration
+feature_config = load_feature_config()
+print("📋 Feature Configuration Loaded:")
+print(f"   Enabled features: {get_enabled_features()}")
+print(f"   Enabled plugins: {get_enabled_plugins()}")
 
+# Middleware to block disabled features
+@app.middleware("http")
+async def feature_check_middleware(request: Request, call_next):
+    """Middleware to block access to disabled features"""
+    path = request.url.path
+    
+    # Skip feature checks for static files, docs, and config endpoints
+    if (path.startswith("/static/") or 
+        path.startswith("/docs") or 
+        path.startswith("/openapi.json") or
+        path == "/" or
+        path == "/feature-config"):
+        response = await call_next(request)
+        return response
+    
+    # Map URL paths to feature names
+    feature_path_map = {
+        "/sql": "sqlquery",
+        "/auth": "bookmarks",  # file_auth_router handles both bookmarks and presets
+        "/security": "security",
+    }
+    
+    # Check if path matches a feature
+    for prefix, feature_name in feature_path_map.items():
+        if path.startswith(prefix):
+            # Special handling for /auth endpoints
+            if prefix == "/auth":
+                # Check if it's a bookmark or preset endpoint
+                if "bookmark" in path:
+                    if not is_feature_enabled("bookmarks"):
+                        return Response(
+                            content='{"detail": "Feature \'bookmarks\' is disabled"}',
+                            status_code=403,
+                            media_type="application/json"
+                        )
+                elif "preset" in path:
+                    if not is_feature_enabled("presets"):
+                        return Response(
+                            content='{"detail": "Feature \'presets\' is disabled"}',
+                            status_code=403,
+                            media_type="application/json"
+                        )
+                # If neither, allow if either is enabled (backward compatibility)
+                elif not (is_feature_enabled("bookmarks") or is_feature_enabled("presets")):
+                    return Response(
+                        content='{"detail": "Feature is disabled"}',
+                        status_code=403,
+                        media_type="application/json"
+                    )
+            else:
+                # Check if feature is enabled
+                if not is_feature_enabled(feature_name):
+                    return Response(
+                        content=f'{{"detail": "Feature \'{feature_name}\' is disabled"}}',
+                        status_code=403,
+                        media_type="application/json"
+                    )
+            break
+    
+    # Check main endpoints
+    endpoint_feature_map = {
+        "/send-command/": "client",
+        "/get-network-nodes/": "client",
+        "/monitor/": "monitor",
+        "/submit-policy/": "policies",
+        "/add-data/": "adddata",
+        "/view-blobs/": "viewfiles",
+        "/view-streaming/": "viewfiles",
+        "/get-preset-policy/": "presets",
+    }
+    
+    if path in endpoint_feature_map:
+        feature_name = endpoint_feature_map[path]
+        if not is_feature_enabled(feature_name):
+            return Response(
+                content=f'{{"detail": "Feature \'{feature_name}\' is disabled"}}',
+                status_code=403,
+                media_type="application/json"
+            )
+    
+    response = await call_next(request)
+    return response
 
-app.include_router(sql_router)
-app.include_router(file_auth_router)
-app.include_router(security_router)
+# Include routers conditionally based on feature config
+if is_feature_enabled("sqlquery"):
+    app.include_router(sql_router)
+    print("✅ SQL Router enabled")
+else:
+    print("❌ SQL Router disabled")
 
-# Load plugins
+# file_auth_router handles both bookmarks and presets
+if is_feature_enabled("bookmarks") or is_feature_enabled("presets"):
+    app.include_router(file_auth_router)
+    print("✅ File Auth Router enabled (bookmarks/presets)")
+else:
+    print("❌ File Auth Router disabled")
+
+if is_feature_enabled("security"):
+    app.include_router(security_router)
+    print("✅ Security Router enabled")
+else:
+    print("❌ Security Router disabled")
+
+# Load plugins (will respect feature config internally)
 load_plugins(app)
+
+# Feature configuration endpoint for frontend
+@app.get("/feature-config")
+def get_feature_config_endpoint():
+    """Get the feature configuration for frontend"""
+    config = load_feature_config()
+    # Return only enabled status for each feature/plugin
+    features_status = {
+        name: {"enabled": data.get("enabled", True)}
+        for name, data in config.get("features", {}).items()
+    }
+    plugins_status = {
+        name: {"enabled": data.get("enabled", True)}
+        for name, data in config.get("plugins", {}).items()
+    }
+    return {
+        "features": features_status,
+        "plugins": plugins_status,
+        "version": config.get("version", "1.0.0")
+    }
+
+# Plugin order endpoint for frontend
+@app.get("/plugins/order")
+def get_plugin_order_endpoint():
+    """Get the plugin order configuration for frontend display"""
+    plugins_dir = os.path.join(BASE_DIR, 'plugins')
+    plugin_order = get_plugin_order(plugins_dir)
+    return {
+        "plugin_order": plugin_order if plugin_order else [],
+        "has_custom_order": plugin_order is not None
+    }
 
 # 23.239.12.151:32349
 # run client () sql edgex extend=(+node_name, @ip, @port, @dbms_name, @table_name) and format = json and timezone=Europe/Dublin  select  timestamp, file, class, bbox, status  from factory_imgs where timestamp >= now() - 1 hour and timestamp <= NOW() order by timestamp desc --> selection (columns: ip using ip and port using port and dbms using dbms_name and table using table_name and file using file) -->  description (columns: bbox as shape.rect)
@@ -85,6 +226,9 @@ def get_status():
 
 @app.post("/send-command/")
 def send_command(conn: Connection, command: Command):
+    # Feature check (also handled by middleware, but double-check for safety)
+    if not is_feature_enabled("client"):
+        raise HTTPException(status_code=403, detail="Feature 'client' is disabled")
     try:
         raw_response = make_request(conn.conn, command.type, command.cmd.strip())
         print("raw_response", raw_response)
@@ -121,16 +265,25 @@ def send_command(conn: Connection, command: Command):
 
 @app.post("/get-network-nodes/")
 def get_connected_nodes(conn: Connection):
+    # Feature check
+    if not is_feature_enabled("client"):
+        raise HTTPException(status_code=403, detail="Feature 'client' is disabled")
     connected_nodes = grab_network_nodes(conn.conn)
     return {"data": connected_nodes}
 
 @app.post("/monitor/")
 def monitor(conn: Connection):
+    # Feature check
+    if not is_feature_enabled("monitor"):
+        raise HTTPException(status_code=403, detail="Feature 'monitor' is disabled")
     monitored_nodes = monitor_network(conn.conn)
     return {"data": monitored_nodes}
 
 @app.post("/submit-policy/")
 def submit_policy(conn: Connection, policy: Policy):
+    # Feature check
+    if not is_feature_enabled("policies"):
+        raise HTTPException(status_code=403, detail="Feature 'policies' is disabled")
     print("conn", conn)
     print("policy", policy)
     raw_response = make_policy(conn.conn, policy)
@@ -141,6 +294,9 @@ def submit_policy(conn: Connection, policy: Policy):
 
 @app.post("/add-data/")
 def send_data(conn: Connection, dbconn: DBConnection, data: list[Dict]):
+    # Feature check
+    if not is_feature_enabled("adddata"):
+        raise HTTPException(status_code=403, detail="Feature 'adddata' is disabled")
     print("conn", conn.conn)
     print("db", dbconn.dbms)
     print("table", dbconn.table)
@@ -168,6 +324,9 @@ def get_preset_policy():
     """
     Get all presets for a specific group for the authenticated user.
     """
+    # Feature check
+    if not is_feature_enabled("presets"):
+        raise HTTPException(status_code=403, detail="Feature 'presets' is disabled")
 
     resp = helpers.get_preset_base_policy("23.239.12.151:32349")
     parsed = parse_response(resp)
@@ -210,6 +369,9 @@ def construct_streaming_url(blob, connectInfo):
 
 @app.post("/view-streaming/")
 def view_streaming_blobs(request: dict):
+    # Feature check
+    if not is_feature_enabled("viewfiles"):
+        raise HTTPException(status_code=403, detail="Feature 'viewfiles' is disabled")
     try:
         print(f"=== STREAMING REQUEST ===")
         print(f"Request type: {type(request)}")
@@ -266,6 +428,9 @@ def view_streaming_blobs(request: dict):
 
 @app.post("/view-blobs/")
 def view_blobs(conn: Connection, blobs: dict):
+    # Feature check
+    if not is_feature_enabled("viewfiles"):
+        raise HTTPException(status_code=403, detail="Feature 'viewfiles' is disabled")
     print("conn", conn.conn)
     # print("blobs", blobs['blobs'])
 

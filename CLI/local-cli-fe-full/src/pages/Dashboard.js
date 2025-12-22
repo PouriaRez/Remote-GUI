@@ -15,6 +15,12 @@ import BlockchainManager from './BlockchainManager';
 
 // Import plugin loader
 import { getPluginPages } from '../plugins/loader';
+// Import feature config
+import { 
+  initializeFeatureConfig, 
+  isFeatureEnabled, 
+  isPluginEnabled 
+} from '../services/featureConfig';
 
 import PolicyGeneratorPage from './Security';
 // import Presets from './Presets';
@@ -28,6 +34,11 @@ const Dashboard = () => {
   // Load plugin pages
   const pluginPages = getPluginPages();
   
+  // Feature configuration state
+  const [enabledFeatures, setEnabledFeatures] = useState(new Set());
+  const [enabledPlugins, setEnabledPlugins] = useState(new Set());
+  const [configLoaded, setConfigLoaded] = useState(false);
+  
   // Load initial state from localStorage
   const [nodes, setNodes] = useState(() => {
     const savedNodes = localStorage.getItem('dashboard-nodes');
@@ -40,6 +51,48 @@ const Dashboard = () => {
   });
 
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+  
+  // Feature configuration mapping
+  const featureRoutes = [
+    { path: 'client', component: Client, featureKey: 'client' },
+    { path: 'monitor', component: Monitor, featureKey: 'monitor' },
+    { path: 'policies', component: Policies, featureKey: 'policies' },
+    { path: 'adddata', component: AddData, featureKey: 'adddata' },
+    { path: 'viewfiles', component: ViewFiles, featureKey: 'viewfiles' },
+    { path: 'sqlquery', component: SqlQueryGenerator, featureKey: 'sqlquery' },
+    { path: 'blockchain', component: BlockchainManager, featureKey: 'blockchain' },
+    { path: 'presets', component: Presets, featureKey: 'presets' },
+    { path: 'bookmarks', component: Bookmarks, featureKey: 'bookmarks' },
+    { path: 'security', component: PolicyGeneratorPage, featureKey: 'security' },
+  ];
+  
+  // Load feature configuration on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      await initializeFeatureConfig();
+      
+      // Check which features are enabled
+      const enabled = new Set();
+      for (const feature of featureRoutes) {
+        if (await isFeatureEnabled(feature.featureKey)) {
+          enabled.add(feature.featureKey);
+        }
+      }
+      setEnabledFeatures(enabled);
+      
+      // Check which plugins are enabled
+      const enabledPluginSet = new Set();
+      for (const [pluginName] of Object.entries(pluginPages)) {
+        if (await isPluginEnabled(pluginName)) {
+          enabledPluginSet.add(pluginName);
+        }
+      }
+      setEnabledPlugins(enabledPluginSet);
+      setConfigLoaded(true);
+    };
+    
+    loadConfig();
+  }, []);
 
   // Debug logging
   console.log("Dashboard - selectedNode:", selectedNode);
@@ -141,44 +194,78 @@ const Dashboard = () => {
         <Sidebar />
         <div className="dashboard-main">
           <Routes>
-            <Route path="client" element={<Client node = {selectedNode}/>} />
-            <Route path="monitor" element={<Monitor node = {selectedNode}/>} />
-            <Route path="policies" element={<Policies node = {selectedNode}/>} />
-            <Route path="adddata" element={<AddData node = {selectedNode}/>} />
-            <Route path="userprofile" element={<UserProfile node = {selectedNode}/>} />
-            <Route path="viewfiles" element={<ViewFiles node = {selectedNode}/>} />
-            <Route path="presets" element={<Presets node = {selectedNode} />} />
-            <Route path="bookmarks" element={<Bookmarks node = {selectedNode} onSelectNode={(node) => {
-              console.log("Selecting node from bookmarks:", node);
-              // Add node to nodes list if not already present
-              if (node && !nodes.includes(node)) {
-                console.log("Adding new node to list:", node);
-                setNodes(prevNodes => [...prevNodes, node]);
-              }
-              // Set as selected node
-              setSelectedNode(node);
-              console.log("Selected node set to:", node);
-            }} />} />
-            <Route path="sqlquery" element={<SqlQueryGenerator node = {selectedNode} />} />
-            <Route path="blockchain" element={<BlockchainManager node = {selectedNode} />} />
-            <Route path="security" element={<PolicyGeneratorPage node = {selectedNode} />} />
+            {/* Core Feature Routes - Filtered by feature config */}
+            {featureRoutes
+              .filter(route => enabledFeatures.has(route.featureKey))
+              .map(route => {
+                if (route.path === 'bookmarks') {
+                  return (
+                    <Route 
+                      key={route.path}
+                      path={route.path} 
+                      element={
+                        <route.component 
+                          node={selectedNode} 
+                          onSelectNode={(node) => {
+                            console.log("Selecting node from bookmarks:", node);
+                            // Add node to nodes list if not already present
+                            if (node && !nodes.includes(node)) {
+                              console.log("Adding new node to list:", node);
+                              setNodes(prevNodes => [...prevNodes, node]);
+                            }
+                            // Set as selected node
+                            setSelectedNode(node);
+                            console.log("Selected node set to:", node);
+                          }} 
+                        />
+                      } 
+                    />
+                  );
+                }
+                return (
+                  <Route 
+                    key={route.path}
+                    path={route.path} 
+                    element={<route.component node={selectedNode} />} 
+                  />
+                );
+              })}
             
-            {/* Plugin Routes - Auto-loaded */}
-            {Object.entries(pluginPages).map(([key, plugin]) => (
-              <Route 
-                key={key}
-                path={plugin.path} 
-                element={
-                  <React.Suspense fallback={<div>Loading {plugin.name}...</div>}>
-                    <plugin.component node={selectedNode} />
-                  </React.Suspense>
-                } 
-              />
-            ))}
+            {/* User Profile - Always available */}
+            <Route path="userprofile" element={<UserProfile node={selectedNode} />} />
             
+            {/* Plugin Routes - Auto-loaded and filtered by feature config */}
+            {configLoaded && Object.entries(pluginPages)
+              .filter(([pluginName]) => enabledPlugins.has(pluginName))
+              .map(([key, plugin]) => (
+                <Route 
+                  key={key}
+                  path={plugin.path} 
+                  element={
+                    <React.Suspense fallback={<div>Loading {plugin.name}...</div>}>
+                      <plugin.component node={selectedNode} />
+                    </React.Suspense>
+                  } 
+                />
+              ))}
             
-            {/* Default view */}
-            <Route path="*" element={<Client node = {selectedNode}/>} />
+            {/* Default view - Use first enabled feature or Client */}
+            <Route 
+              path="*" 
+              element={
+                (() => {
+                  if (enabledFeatures.has('client')) {
+                    return <Client node={selectedNode} />;
+                  }
+                  const firstEnabled = featureRoutes.find(r => enabledFeatures.has(r.featureKey));
+                  if (firstEnabled) {
+                    const Component = firstEnabled.component;
+                    return <Component node={selectedNode} />;
+                  }
+                  return <div>No features enabled. Please check feature configuration.</div>;
+                })()
+              } 
+            />
           </Routes>
         </div>
       </div>
