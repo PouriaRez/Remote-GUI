@@ -107,6 +107,31 @@ const iconMap = {
 };
 ```
 
+## Plugin Loading Order
+
+By default, plugins are loaded in alphabetical order. However, you can control the loading order by creating a `plugin_order.json` file in the `plugins/` directory.
+
+### Creating a Plugin Order Configuration
+
+1. Copy the example file: `cp plugin_order.json.example plugin_order.json`
+2. Edit `plugin_order.json` and specify your desired plugin order:
+
+```json
+{
+  "plugin_order": [
+    "reportgenerator",
+    "nodecheck",
+    "calculator"
+  ]
+}
+```
+
+**Notes:**
+- Plugins listed in `plugin_order` will be loaded first, in the order specified
+- Plugins not listed in `plugin_order` will be loaded after, in alphabetical order
+- If `plugin_order.json` doesn't exist, all plugins load alphabetically (default behavior)
+- The order affects the sequence in which routers are added to the FastAPI app, which can be important for route precedence
+
 ## Fully Automatic Features
 
 - **Backend**: Automatically discovers plugin folders and loads `<plugin_name>_router.py` files
@@ -114,6 +139,7 @@ const iconMap = {
 - **Sidebar**: Automatically adds navigation items with appropriate icons
 - **Error Handling**: Gracefully handles missing plugins with fallback components
 - **Lazy Loading**: Plugin pages load on-demand with loading states
+- **Custom Ordering**: Control plugin loading order via `plugin_order.json`
 
 ## Plugin Structure Summary
 

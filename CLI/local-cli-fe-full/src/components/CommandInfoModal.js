@@ -4,53 +4,44 @@ import '../styles/CommandInfoModal.css';
 const CommandInfoModal = ({ isOpen, onClose, node, command, method }) => {
   if (!isOpen) return null;
 
-  const parseCommandForCurl = (rawCommand) => {
-    if (!rawCommand || !rawCommand.startsWith('run client')) {
-      return { parsedCommand: rawCommand, destination: null };
-    }
-
-    const openParenIndex = rawCommand.indexOf('(');
-    const closeParenIndex = rawCommand.indexOf(')', openParenIndex);
-
-    if (openParenIndex === -1 || closeParenIndex === -1 || closeParenIndex < openParenIndex) {
-      return { parsedCommand: rawCommand, destination: null };
-    }
-
-    const connection = rawCommand.slice(openParenIndex + 1, closeParenIndex).trim();
-    const remainder = rawCommand.slice(closeParenIndex + 1).trim();
-    const parsedCommand = remainder || rawCommand;
-    const destination = connection || 'network';
-
-    return { parsedCommand, destination };
-  };
-
-  const buildCurlCommand = (isWindows = false) => {
+  // Generate the cURL command (regular)
+  const generateCurlCommand = () => {
     const url = `http://${node}`;
-    const { parsedCommand, destination } = parseCommandForCurl(command);
-
-    const headerEntries = [
-      ['User-Agent', 'AnyLog/1.23'],
-    ];
-
-    if (destination) {
-      headerEntries.push(['destination', destination]);
-    }
-
-    headerEntries.push(['command', parsedCommand]);
+    const headers = {
+      'User-Agent': 'AnyLog/1.23',
+      'command': command
+    };
 
     let curlCommand = `curl --location --request ${method} ${url}`;
-
-    headerEntries.forEach(([key, value]) => {
-      const headerValue = isWindows ? value.replace(/"/g, '""') : value;
-      curlCommand += ` --header "${key}: ${headerValue}"`;
+    
+    // Add headers
+    Object.entries(headers).forEach(([key, value]) => {
+      curlCommand += ` --header "${key}: ${value}"`;
     });
 
     return curlCommand;
   };
 
-  // Generate the cURL commands
-  const generateCurlCommand = () => buildCurlCommand(false);
-  const generateWindowsCurlCommand = () => buildCurlCommand(true);
+  // Generate the Windows cURL command
+  const generateWindowsCurlCommand = () => {
+    const url = `http://${node}`;
+    const headers = {
+      'User-Agent': 'AnyLog/1.23',
+      'command': command
+    };
+
+    let curlCommand = `curl --location --request ${method} ${url}`;
+    
+    // Add headers with Windows-style quoting
+    Object.entries(headers).forEach(([key, value]) => {
+      // For Windows, we need to escape quotes differently
+      // Windows uses "" to escape quotes within double-quoted strings
+      const windowsValue = value.replace(/"/g, '""');
+      curlCommand += ` --header "${key}: ${windowsValue}"`;
+    });
+
+    return curlCommand;
+  };
 
   // Check if the commands are different
   const curlCommand = generateCurlCommand();

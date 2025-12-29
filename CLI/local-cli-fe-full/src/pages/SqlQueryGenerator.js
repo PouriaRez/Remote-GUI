@@ -244,28 +244,22 @@ const SqlQueryGenerator = ({ node }) => {
     }
     
     // Build the SELECT clause with columns and aggregations
-    const selectParts = [];
-    const aggregationParts = [];
-    const plainSelectColumns = new Set();
+    let selectClause = '';
     
     // Add increments function if enabled
     if (hasIncrements) {
-      selectParts.push(`increments(${incrementsUnit}, ${incrementsInterval}, ${incrementsDateColumn})`);
+      selectClause += `increments(${incrementsUnit}, ${incrementsInterval}, ${incrementsDateColumn}), `;
       // Add min and max of the date column automatically
-      selectParts.push(`min(${incrementsDateColumn})`);
-      selectParts.push(`max(${incrementsDateColumn})`);
+      selectClause += `min(${incrementsDateColumn}), max(${incrementsDateColumn})`;
     }
     
     // Add selected columns (in columns mode or mixed mode)
     if (columnMode === 'columns' || columnMode === 'mixed') {
       if (selectedColumns.length > 0) {
-        selectedColumns.forEach(column => {
-          const trimmedColumn = column.trim();
-          if (trimmedColumn.length > 0) {
-            selectParts.push(trimmedColumn);
-            plainSelectColumns.add(trimmedColumn);
-          }
-        });
+        if (selectClause.length > 0) {
+          selectClause += ', ';
+        }
+        selectClause += selectedColumns.join(', ');
       }
     }
     
@@ -275,8 +269,13 @@ const SqlQueryGenerator = ({ node }) => {
         if (agg.function) {
           // Handle special functions like count(*)
           if (agg.isSpecialFunction && agg.column === '*') {
+            // Add comma if there are previous columns
+            if (selectClause.length > 0) {
+              selectClause += ', ';
+            }
+            
             const alias = agg.alias || `${agg.function.toLowerCase()}_all`;
-            aggregationParts.push(`${agg.function}(*) as ${alias}`);
+            selectClause += `${agg.function}(*) as ${alias}`;
             return;
           }
           
@@ -291,43 +290,18 @@ const SqlQueryGenerator = ({ node }) => {
               return; // Skip invalid aggregations
             }
             
+            // Add comma if there are previous columns
+            if (selectClause.length > 0) {
+              selectClause += ', ';
+            }
+            
             const alias = agg.alias || `${agg.function.toLowerCase()}_${agg.column}`;
-            aggregationParts.push(`${agg.function}(${agg.column}) as ${alias}`);
+            selectClause += `${agg.function}(${agg.column}) as ${alias}`;
           }
         }
       });
     }
     
-    // Ensure GROUP BY columns appear in the SELECT clause
-
-    // Made it so that the group by columns appear in the SELECT clause first for organizational purposes
-    // went with this option as opposed to update the options for GROUP BY to contain only non-aggregation columns.
-    // This is so that in the case that a User that is less familiar with the group by requirements can select a column and it will work properly
-    let orderedSelectParts = [...selectParts];
-
-    if (groupByColumns.length > 0) {
-      const groupColumnsInSelect = [];
-
-      groupByColumns
-        .map(column => column.trim())
-        .filter(column => column.length > 0)
-        .forEach(column => {
-          if (!plainSelectColumns.has(column)) {
-            orderedSelectParts.push(column);
-            plainSelectColumns.add(column);
-          }
-          if (!groupColumnsInSelect.includes(column)) {
-            groupColumnsInSelect.push(column);
-          }
-        });
-
-      orderedSelectParts = [
-        ...groupColumnsInSelect,
-        ...orderedSelectParts.filter(column => !groupColumnsInSelect.includes(column)),
-      ];
-    }
-
-    const selectClause = [...orderedSelectParts, ...aggregationParts].join(', ');
     anylogQuery += selectClause;
     
     // Add FROM clause
@@ -397,9 +371,9 @@ const SqlQueryGenerator = ({ node }) => {
     
     // Add GROUP BY clause
     if (groupByColumns.length > 0) {
-      anylogQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+      anylogQuery += ` and GROUP BY ${groupByColumns.join(', ')}`;
     } else if (groupBy.trim()) {
-      anylogQuery += ` GROUP BY ${groupBy}`;
+      anylogQuery += ` and GROUP BY ${groupBy}`;
     }
     
     // Add ORDER BY clause
@@ -1908,4 +1882,4 @@ const SqlQueryGenerator = ({ node }) => {
   );
 };
 
-export default SqlQueryGenerator;
+export default SqlQueryGenerator; 
