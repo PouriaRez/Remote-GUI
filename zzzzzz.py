@@ -1,33 +1,18 @@
-"""
-MCP Agent for AnyLog integration with Ollama
-Based on ollama_demo.py
-"""
 import asyncio
 import json
 from contextlib import AsyncExitStack
 from typing import Any, Dict, List, Optional
-import os
 
-try:
-    import ollama
-    HAS_OLLAMA = True
-except ImportError:
-    HAS_OLLAMA = False
-    ollama = None
+import ollama
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
-try:
-    from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
-    HAS_MCP = True
-except ImportError:
-    HAS_MCP = False
-    ClientSession = None
-    StdioServerParameters = None
-    stdio_client = None
 
-# Default configuration - can be overridden via environment variables
-DEFAULT_ANYLOG_MCP_SSE_URL = os.getenv("ANYLOG_MCP_SSE_URL", "http://23.239.12.151:32349/mcp/sse")
-DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+ANYLOG_MCP_SSE_URL = "http://23.239.12.151:32349/mcp/sse"  # <-- change
+# OLLAMA_MODEL = "gpt-oss:20b"
+OLLAMA_MODEL = "qwen2.5:7b-instruct"
+# or "mistral:7b-instruct"
+# or "llama3.1:8b-instruct"
 
 def sanitize_json_schema(schema: dict) -> dict:
     """
@@ -118,30 +103,17 @@ def mcp_tools_to_ollama_tools(mcp_tools) -> List[Dict[str, Any]]:
 
 
 async def ollama_chat_async(**kwargs):
-    """Run ollama.chat without blocking the event loop"""
-    if not HAS_OLLAMA:
-        raise RuntimeError("Ollama is not installed. Please install it with: pip install ollama")
     # ollama.chat is sync; run it without blocking the event loop
     return await asyncio.to_thread(ollama.chat, **kwargs)
 
 
 class AnyLogMCPAgent:
-    def __init__(self, anylog_sse_url: str, ollama_model: str = DEFAULT_OLLAMA_MODEL):
+    def __init__(self, anylog_sse_url: str):
         self.anylog_sse_url = anylog_sse_url
-        self.ollama_model = ollama_model
         self.session: Optional[ClientSession] = None
-        self.exit_stack: Optional[AsyncExitStack] = None
-        self.stdio = None
-        self.write = None
+        self.exit_stack = AsyncExitStack()
 
     async def connect(self):
-        """Connect to AnyLog MCP server via mcp-proxy"""
-        if not HAS_MCP:
-            raise RuntimeError("MCP libraries are not installed. Please install them with: pip install mcp")
-        
-        # Create a new exit stack for this connection
-        self.exit_stack = AsyncExitStack()
-        
         # Start mcp-proxy as a stdio "server" process that bridges to remote SSE
         server_params = StdioServerParameters(
             command="mcp-proxy",
@@ -154,15 +126,10 @@ class AnyLogMCPAgent:
         await self.session.initialize()
 
         tools_resp = await self.session.list_tools()
-        return [t.name for t in tools_resp.tools]
+        print("Connected. MCP tools:", [t.name for t in tools_resp.tools])
 
     async def ask(self, user_prompt: str) -> str:
-        """Ask a question to the MCP agent using Ollama"""
-        if not self.session:
-            raise RuntimeError("Not connected. Call connect() first.")
-        
-        if not HAS_OLLAMA:
-            raise RuntimeError("Ollama is not installed. Please install it with: pip install ollama")
+        assert self.session is not None
 
         # Pull MCP tools and expose them to Ollama as tool schemas
         tools_resp = await self.session.list_tools()
@@ -186,7 +153,7 @@ class AnyLogMCPAgent:
         # Agent loop: model decides tool calls; we execute them via MCP; feed results back
         for _ in range(12):  # safety loop cap
             resp = await ollama_chat_async(
-                model=self.ollama_model,
+                model=OLLAMA_MODEL,
                 messages=messages,
                 tools=ollama_tools,
                 stream=False,
@@ -221,36 +188,34 @@ class AnyLogMCPAgent:
         return "Stopped (too many tool-call iterations). Try narrowing the question."
 
     async def close(self):
-        """Close the MCP connection"""
-        try:
-            # Close the exit stack if it exists
-            if self.exit_stack is not None:
-                try:
-                    await self.exit_stack.aclose()
-                except RuntimeError as e:
-                    # Handle "Attempted to exit cancel scope in a different task" error
-                    # This happens when AsyncExitStack is closed from a different async task
-                    # than where it was created. We'll just reset the state.
-                    error_msg = str(e).lower()
-                    if "different task" in error_msg or "cancel scope" in error_msg:
-                        # Can't clean up properly from different task, just reset state
-                        pass
-                    else:
-                        raise
-                except Exception:
-                    # Other errors - just reset state
-                    pass
-                finally:
-                    self.exit_stack = None
-            
-            # Reset all state
-            self.session = None
-            self.stdio = None
-            self.write = None
-        except Exception:
-            # Ensure state is reset even if cleanup fails
-            self.session = None
-            self.exit_stack = None
-            self.stdio = None
-            self.write = None
+        await self.exit_stack.aclose()
 
+
+async def main():
+    agent = AnyLogMCPAgent(ANYLOG_MCP_SSE_URL)
+    await agent.connect()
+
+    # Example prompt
+    try:
+        while True:
+            q = input("\nAsk> ").strip()
+            if q.lower() in ("exit", "quit"):
+                break
+            answer = await agent.ask(q)
+            print("\n--- ANSWER ---\n", answer)
+    finally:
+        await agent.close()
+
+
+    '''
+    answer = await agent.ask(
+        "For unit 250 device AIC-12, check the last 7 days and identify signals drifting out of baseline. "
+        "Summarize likely maintenance concerns and what to verify on-site."
+    )
+    print("\n--- FINAL ANSWER ---\n", answer)
+    await agent.close()
+    '''
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

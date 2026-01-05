@@ -51,13 +51,30 @@ export const connectMCP = async (anylogSseUrl = null, ollamaModel = null) => {
       }),
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const error = await response.json();
+        errorMessage = error.detail || error.message || errorMessage;
+      } catch (parseError) {
+        // If JSON parsing fails, try to get text
+        try {
+          const text = await response.text();
+          if (text) errorMessage = text;
+        } catch (textError) {
+          // Use default error message
+        }
+      }
+      throw new Error(errorMessage);
     }
     return await response.json();
   } catch (error) {
     console.error('Error connecting to MCP:', error);
-    throw error;
+    // Ensure we always throw an Error object with a message
+    if (error instanceof Error) {
+      throw error;
+    } else {
+      throw new Error(String(error));
+    }
   }
 };
 

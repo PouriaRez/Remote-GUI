@@ -6,11 +6,12 @@ import {
   listMCPTools,
   askMCP,
 } from './mcpclient_api';
+import MarkdownRenderer from './MarkdownRenderer';
 
 // Plugin metadata - used by the plugin loader
 export const pluginMetadata = {
   name: 'MCP Client',
-  icon: '🤖'
+  icon: null
 };
 
 const McpclientPage = ({ node }) => {
@@ -22,10 +23,12 @@ const McpclientPage = ({ node }) => {
   const [prompt, setPrompt] = useState('');
   const [answers, setAnswers] = useState([]);
   const [asking, setAsking] = useState(false);
-  const [anylogUrl, setAnylogUrl] = useState('');
+  const [anylogUrl, setAnylogUrl] = useState('http://23.239.12.151:32349/mcp/sse');
   const [ollamaModel, setOllamaModel] = useState('qwen2.5:7b-instruct');
   const [showConfig, setShowConfig] = useState(false);
   const messagesEndRef = useRef(null);
+  const previousModelRef = useRef(ollamaModel);
+  const isInitialMountRef = useRef(true);
 
   useEffect(() => {
     loadStatus();
@@ -34,6 +37,55 @@ const McpclientPage = ({ node }) => {
   useEffect(() => {
     scrollToBottom();
   }, [answers]);
+
+  // Auto-reconnect when model changes (if already connected)
+  useEffect(() => {
+    // Skip on initial mount
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      previousModelRef.current = ollamaModel;
+      return;
+    }
+
+    // Only reconnect if model changed and we're currently connected
+    if (previousModelRef.current !== ollamaModel && connected) {
+      console.log(`Model changed from ${previousModelRef.current} to ${ollamaModel}. Reconnecting...`);
+      const oldModel = previousModelRef.current;
+      previousModelRef.current = ollamaModel;
+      
+      // Auto-reconnect with new model
+      const reconnect = async () => {
+        try {
+          setError(null);
+          setLoading(true);
+          // Disconnect first
+          await disconnectMCP();
+          // Then connect with new model
+          const result = await connectMCP(anylogUrl || null, ollamaModel || null);
+          setConnected(true);
+          // Update status with fresh data
+          const freshStatus = await getMCPStatus();
+          setStatus(freshStatus);
+          await loadTools();
+        } catch (err) {
+          console.error('Failed to reconnect with new model:', err);
+          setError(`Failed to reconnect with new model: ${err.message}`);
+          setConnected(false);
+          // Revert model on error
+          previousModelRef.current = oldModel;
+          setOllamaModel(oldModel);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      reconnect();
+    } else if (previousModelRef.current !== ollamaModel) {
+      // Model changed but not connected - just update the ref
+      previousModelRef.current = ollamaModel;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ollamaModel, connected, anylogUrl]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,14 +98,66 @@ const McpclientPage = ({ node }) => {
       const statusData = await getMCPStatus();
       setStatus(statusData);
       setConnected(statusData.connected);
-      if (statusData.connected) {
-        setAnylogUrl(statusData.anylog_url || '');
-        setOllamaModel(statusData.current_model || 'qwen2.5:7b-instruct');
+      
+      // Set URL and model from status if available
+      if (statusData.anylog_url) {
+        setAnylogUrl(statusData.anylog_url);
+      }
+      if (statusData.current_model) {
+        setOllamaModel(statusData.current_model);
+        // Update ref to prevent unnecessary reconnection
+        previousModelRef.current = statusData.current_model;
+      }
+      
+      // Auto-connect if not connected
+      if (!statusData.connected) {
+        const defaultUrl = 'http://23.239.12.151:32349/mcp/sse';
+        const defaultModel = 'qwen2.5:7b-instruct';
+        try {
+          const result = await connectMCP(defaultUrl, defaultModel);
+          setConnected(true);
+          setStatus({
+            ...statusData,
+            connected: true,
+            available_tools: result.available_tools || [],
+          });
+          setAnylogUrl(defaultUrl);
+          setOllamaModel(defaultModel);
+          await loadTools();
+        } catch (connectErr) {
+          console.error('Auto-connect failed:', connectErr);
+          // Show error but allow manual retry
+          setError(`Auto-connect failed: ${connectErr.message}. Please try connecting manually.`);
+        }
+      } else {
+        // Already connected, just load tools
         await loadTools();
       }
     } catch (err) {
       console.error('Failed to load status:', err);
-      setError(err.message);
+      // Don't set error on initial load failure - try auto-connect anyway
+      if (!connected) {
+        const defaultUrl = 'http://23.239.12.151:32349/mcp/sse';
+        const defaultModel = 'qwen2.5:7b-instruct';
+        try {
+          const result = await connectMCP(defaultUrl, defaultModel);
+          setConnected(true);
+          setStatus({
+            connected: true,
+            available_tools: result.available_tools || [],
+            ollama_available: true,
+            mcp_available: true,
+            current_model: defaultModel,
+            anylog_url: defaultUrl
+          });
+          setAnylogUrl(defaultUrl);
+          setOllamaModel(defaultModel);
+          await loadTools();
+        } catch (connectErr) {
+          console.error('Auto-connect failed:', connectErr);
+          setError(connectErr.message);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -81,9 +185,18 @@ const McpclientPage = ({ node }) => {
       });
       await loadTools();
       setShowConfig(false);
+      // Clear any previous errors on successful connection
+      setError(null);
     } catch (err) {
       console.error('Failed to connect:', err);
-      setError(err.message);
+      const errorMessage = err.message || err.toString() || 'Unknown error occurred';
+      console.error('Error details:', {
+        message: errorMessage,
+        error: err,
+        stack: err.stack
+      });
+      setError(errorMessage);
+      // Keep error visible - don't clear it
     } finally {
       setLoading(false);
     }
@@ -314,13 +427,36 @@ const McpclientPage = ({ node }) => {
         <div style={{
           padding: '15px 20px',
           backgroundColor: '#f8d7da',
-          border: '1px solid #f5c6cb',
+          border: '2px solid #dc3545',
           borderRadius: '6px',
           margin: '20px',
           color: '#721c24',
-          flexShrink: 0
+          flexShrink: 0,
+          boxShadow: '0 2px 4px rgba(220, 53, 69, 0.2)'
         }}>
-          <strong>Error:</strong> {error}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <span style={{ fontSize: '20px' }}>⚠️</span>
+            <strong style={{ fontSize: '16px' }}>Connection Error</strong>
+          </div>
+          <div style={{ marginLeft: '30px', fontSize: '14px', lineHeight: '1.5' }}>
+            {error}
+          </div>
+          <button
+            onClick={() => setError(null)}
+            style={{
+              marginTop: '10px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              background: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -392,8 +528,12 @@ const McpclientPage = ({ node }) => {
                   }}>
                     {answer.type === 'user' ? '👤 You' : answer.type === 'error' ? '❌ Error' : '🤖 Assistant'}
                   </div>
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                    {answer.content}
+                  <div style={{ lineHeight: '1.6' }}>
+                    {answer.type === 'assistant' ? (
+                      <MarkdownRenderer content={answer.content} />
+                    ) : (
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{answer.content}</div>
+                    )}
                   </div>
                 </div>
               ))}

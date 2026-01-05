@@ -166,7 +166,19 @@ async def connect_mcp(request: MCPConnectRequest):
             "anylog_url": url
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to connect: {str(e)}")
+        import traceback
+        error_detail = str(e)
+        # Add more context for common errors
+        if "mcp-proxy" in error_detail.lower() or "command not found" in error_detail.lower():
+            error_detail = f"mcp-proxy not found. Please ensure mcp-proxy is installed and in your PATH. Original error: {error_detail}"
+        elif "connection" in error_detail.lower() and "closed" in error_detail.lower():
+            error_detail = f"Connection to AnyLog MCP server failed. Please check if the server is running at {url}. Original error: {error_detail}"
+        elif "ConnectionError" in str(type(e)):
+            error_detail = f"Cannot reach AnyLog MCP server at {url}. Please verify the URL and that the server is accessible. Original error: {error_detail}"
+        
+        print(f"❌ MCP Connection Error: {error_detail}")
+        print(f"   Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_detail)
 
 @api_router.post("/disconnect")
 async def disconnect_mcp():
