@@ -10,7 +10,7 @@ import os
 api_router = APIRouter(prefix="/grafana", tags=["Grafana"])
 
 # Default Grafana URL (can be overridden via environment variable)
-DEFAULT_GRAFANA_URL = os.getenv("GRAFANA_URL", "https://www.anylog.network")
+DEFAULT_GRAFANA_URL = os.getenv("GRAFANA_URL", "http://23.239.12.151:3100/dashboards/f/ddu0qc65783r4a/smart-city")
 
 # Request/Response models
 class GrafanaConfig(BaseModel):
