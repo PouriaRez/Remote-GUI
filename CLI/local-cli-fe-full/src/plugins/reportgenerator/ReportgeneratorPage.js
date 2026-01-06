@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../../styles/ReportgeneratorPage.css';
 
 // Plugin metadata - used by the plugin loader
@@ -30,36 +30,15 @@ const ReportgeneratorPage = ({ node }) => {
   const [success, setSuccess] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [pdfFilename, setPdfFilename] = useState(null);
-
-  // Fetch available reports on component mount
-  useEffect(() => {
-    if (node) {
-      fetchReports();
-    }
-  }, [node]);
-
-  // Fetch monitor IDs when report is selected (only if monitor_id not in config)
-  useEffect(() => {
-    if (selectedReport && node) {
-      // Find the selected report config
-      const report = reports.find(r => r.name === selectedReport);
-      if (report) {
-        setSelectedReportConfig(report);
-        // Only fetch monitor IDs if monitor_id is not configured in the report
-        if (!report.monitor_id) {
-          fetchMonitorIds();
-        } else {
-          // Monitor ID is configured, clear monitor IDs and use the one from config
-          setMonitorIds([]);
-          setSelectedMonitorId(report.monitor_id);
-        }
-      }
-    } else {
-      setSelectedReportConfig(null);
-      setMonitorIds([]);
-      setSelectedMonitorId('');
-    }
-  }, [selectedReport, node, reports]);
+  
+  // Import/Export state
+  const [importFiles, setImportFiles] = useState([]);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [conflictingFiles, setConflictingFiles] = useState([]);
+  const [currentConflictIndex, setCurrentConflictIndex] = useState(0);
+  const [filesToOverwrite, setFilesToOverwrite] = useState(new Set());
+  const [replaceAll, setReplaceAll] = useState(false);
 
   // Helper function to convert Date to date format (YYYY-MM-DD)
   const formatDateForInput = (date) => {
@@ -89,7 +68,8 @@ const ReportgeneratorPage = ({ node }) => {
     if (!endTime) {
       setEndTime(formatDateForInput(now));
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount to set initial default values
 
   // Cleanup blob URL when component unmounts or PDF changes
   useEffect(() => {
@@ -135,9 +115,9 @@ const ReportgeneratorPage = ({ node }) => {
     }
   };
 
-  const fetchMonitorIds = async () => {
+  const fetchMonitorIds = useCallback(async () => {
     if (!selectedReport || !node) return;
-    
+
     try {
       setLoadingMonitorIds(true);
       const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
@@ -170,7 +150,37 @@ const ReportgeneratorPage = ({ node }) => {
     } finally {
       setLoadingMonitorIds(false);
     }
-  };
+  }, [selectedReport, node]);
+
+  // Fetch available reports on component mount
+  useEffect(() => {
+    if (node) {
+      fetchReports();
+    }
+  }, [node]);
+
+  // Fetch monitor IDs when report is selected (only if monitor_id not in config)
+  useEffect(() => {
+    if (selectedReport && node) {
+      // Find the selected report config
+      const report = reports.find(r => r.name === selectedReport);
+      if (report) {
+        setSelectedReportConfig(report);
+        // Only fetch monitor IDs if monitor_id is not configured in the report
+        if (!report.monitor_id) {
+          fetchMonitorIds();
+        } else {
+          // Monitor ID is configured, clear monitor IDs and use the one from config
+          setMonitorIds([]);
+          setSelectedMonitorId(report.monitor_id);
+        }
+      }
+    } else {
+      setSelectedReportConfig(null);
+      setMonitorIds([]);
+      setSelectedMonitorId('');
+    }
+  }, [selectedReport, node, reports, fetchMonitorIds]);
 
   const handleGenerateReport = async () => {
     // Check if monitor_id is required (not in config)
@@ -243,6 +253,274 @@ const ReportgeneratorPage = ({ node }) => {
     }
   };
 
+  // Import functionality
+  const handleFileUpload = (event) => {
+    const files = Array.from(event.target.files);
+    if (!files || files.length === 0) return;
+
+    // Validate file types
+    const validFiles = files.filter(file => {
+      const isZip = file.name.endsWith('.zip');
+      const isJson = file.name.endsWith('.json');
+      const isYaml = file.name.endsWith('.yaml') || file.name.endsWith('.yml');
+      return isZip || isJson || isYaml;
+    });
+
+    if (validFiles.length === 0) {
+      setError("Please select valid files (.zip, .json, .yaml, or .yml)");
+      return;
+    }
+
+    if (validFiles.length < files.length) {
+      setError(`Some files were skipped. Only .zip, .json, .yaml, and .yml files are supported.`);
+    }
+
+    setImportFiles(validFiles);
+    setError("");
+    setSuccess(null);
+
+    // Preview: Try to read first JSON file if available, or show file list
+    const firstJsonFile = validFiles.find(f => f.name.endsWith('.json'));
+    if (firstJsonFile && !validFiles.find(f => f.name.endsWith('.zip'))) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const jsonData = JSON.parse(e.target.result);
+          setImportPreview(jsonData);
+          
+          // Validate structure
+          if (jsonData.db_name || jsonData.title) {
+            setSuccess(`Single config file detected. ${validFiles.length} file(s) selected.`);
+          } else {
+            setSuccess(`${validFiles.length} file(s) selected.`);
+            setImportPreview(null);
+          }
+        } catch (parseError) {
+          setSuccess(`${validFiles.length} file(s) selected.`);
+          setImportPreview(null);
+        }
+      };
+      reader.readAsText(firstJsonFile);
+    } else {
+      // ZIP or multiple files - just show file list
+      setSuccess(`${validFiles.length} file(s) selected${validFiles.find(f => f.name.endsWith('.zip')) ? ' (ZIP archive)' : ''}`);
+      setImportPreview(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFiles || importFiles.length === 0) {
+      setError("Please select file(s) to import");
+      return;
+    }
+
+    setImporting(true);
+    setError("");
+    setSuccess(null);
+
+    try {
+      const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
+      
+      // Step 1: Check for conflicts
+      const checkFormData = new FormData();
+      importFiles.forEach(file => {
+        checkFormData.append('files', file);
+      });
+
+      const checkResponse = await fetch(`${API_URL}/reportgenerator/import-config-check`, {
+        method: 'POST',
+        body: checkFormData,
+      });
+
+      if (!checkResponse.ok) {
+        const errorData = await checkResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP error! status: ${checkResponse.status}`);
+      }
+
+      const checkData = await checkResponse.json();
+      
+      // Step 2: Handle conflicts if any
+      if (checkData.has_conflicts && checkData.conflicting_files.length > 0) {
+        setConflictingFiles(checkData.conflicting_files);
+        setCurrentConflictIndex(0);
+        setFilesToOverwrite(new Set());
+        setReplaceAll(false);
+        setImporting(false);
+        return; // Will resume after user makes choices
+      }
+
+      // Step 3: No conflicts, proceed with import
+      await performImport(new Set());
+    } catch (err) {
+      setError(`Import failed: ${err.message}`);
+      setImporting(false);
+    }
+  };
+
+  const handleConflictChoice = (choice) => {
+    const currentFile = conflictingFiles[currentConflictIndex];
+    
+    if (choice === 'replace-all') {
+      // Add all remaining conflicts to overwrite set
+      const allConflicts = new Set(conflictingFiles);
+      setFilesToOverwrite(allConflicts);
+      setReplaceAll(true);
+      // Proceed with import
+      performImport(allConflicts);
+    } else if (choice === 'replace') {
+      // Add current file to overwrite set
+      const newSet = new Set(filesToOverwrite);
+      newSet.add(currentFile);
+      setFilesToOverwrite(newSet);
+      
+      // Move to next conflict or proceed with import
+      if (currentConflictIndex < conflictingFiles.length - 1) {
+        setCurrentConflictIndex(currentConflictIndex + 1);
+      } else {
+        // All conflicts handled, proceed with import
+        performImport(newSet);
+      }
+    } else if (choice === 'skip') {
+      // Don't add to overwrite set, move to next or proceed
+      if (currentConflictIndex < conflictingFiles.length - 1) {
+        setCurrentConflictIndex(currentConflictIndex + 1);
+      } else {
+        // All conflicts handled, proceed with import
+        performImport(filesToOverwrite);
+      }
+    } else if (choice === 'cancel') {
+      // Cancel import
+      handleCancelImport();
+      setConflictingFiles([]);
+      setCurrentConflictIndex(0);
+    }
+  };
+
+  const performImport = async (overwriteSet) => {
+    setImporting(true);
+    setError("");
+    setSuccess(null);
+
+    try {
+      const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
+      const formData = new FormData();
+      
+      // Append all files
+      importFiles.forEach(file => {
+        formData.append('files', file);
+      });
+      
+      // Send files to overwrite as JSON string
+      if (overwriteSet.size > 0) {
+        formData.append('overwrite_files', JSON.stringify(Array.from(overwriteSet)));
+      }
+
+      const response = await fetch(`${API_URL}/reportgenerator/import-config`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.errors && data.errors.length > 0) {
+        setError(`${data.message}. Errors: ${data.errors.join('; ')}`);
+      } else {
+        setSuccess(data.message || `Successfully imported ${data.count || 1} config(s)!`);
+      }
+      
+      // Reload reports list
+      await fetchReports();
+
+      // Clear everything after successful import (or even if there were errors)
+      setTimeout(() => {
+        setImportFiles([]);
+        setImportPreview(null);
+        setConflictingFiles([]);
+        setCurrentConflictIndex(0);
+        setFilesToOverwrite(new Set());
+        setReplaceAll(false);
+        // Reset file input
+        const fileInput = document.querySelector('#config-file-input');
+        if (fileInput) fileInput.value = '';
+        // Only clear success/error messages if import was successful
+        if (!data.errors || data.errors.length === 0) {
+          setError("");
+          setSuccess(null);
+        }
+      }, 3000);
+    } catch (err) {
+      setError(`Import failed: ${err.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleCancelImport = () => {
+    setImportFiles([]);
+    setImportPreview(null);
+    setConflictingFiles([]);
+    setCurrentConflictIndex(0);
+    setFilesToOverwrite(new Set());
+    setReplaceAll(false);
+    setError("");
+    setSuccess(null);
+    // Reset file input
+    const fileInput = document.querySelector('#config-file-input');
+    if (fileInput) fileInput.value = '';
+  };
+
+  // Export functionality
+  const handleExport = async () => {
+    if (reports.length === 0) {
+      setError("No report configs to export");
+      return;
+    }
+
+    try {
+      const API_URL = window._env_?.REACT_APP_API_URL || "http://localhost:8000";
+      const response = await fetch(`${API_URL}/reportgenerator/export-configs`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      // Get the ZIP file blob
+      const blob = await response.blob();
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `report-configs-export-${new Date().toISOString().split('T')[0]}.zip`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setSuccess(`Exported ${reports.length} report config(s) as ZIP file`);
+    } catch (err) {
+      setError(`Export failed: ${err.message}`);
+    }
+  };
+
   // Check if monitor_id is required (not in config)
   const monitorIdFromConfig = selectedReportConfig?.monitor_id;
   const hasMonitorId = monitorIdFromConfig || selectedMonitorId;
@@ -259,6 +537,116 @@ const ReportgeneratorPage = ({ node }) => {
           </div>
         )}
       </div>
+
+      {/* Import/Export Section */}
+      <section className="import-section">
+        <h2>📁 Import Report Configs from JSON</h2>
+        <div className="import-container">
+          <div className="import-export-actions">
+            <input
+              id="config-file-input"
+              type="file"
+              accept=".zip,.json,.yaml,.yml"
+              multiple
+              onChange={handleFileUpload}
+              disabled={importing}
+              className="file-input"
+            />
+            <button 
+              onClick={handleExport} 
+              disabled={reports.length === 0}
+              className="export-btn"
+              title="Export all report configs as JSON"
+            >
+              📤 Export All Configs
+            </button>
+          </div>
+          {importFiles.length > 0 && (
+            <div className="file-info">
+              <p>Selected {importFiles.length} file(s):</p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0' }}>
+                {importFiles.map((file, index) => (
+                  <li key={index} style={{ padding: '0.25rem 0', color: '#495057', fontSize: '0.9rem' }}>
+                    {file.name} {file.name.endsWith('.zip') && '(ZIP archive)'}
+                  </li>
+                ))}
+              </ul>
+              {importPreview && (
+                <div className="import-preview">
+                  <h4>Preview (first JSON file):</h4>
+                  <ul>
+                    <li>
+                      <strong>{importPreview.title || importPreview.display_name || 'Unnamed Config'}</strong>
+                      {importPreview.db_name && ` - Database: ${importPreview.db_name}`}
+                    </li>
+                  </ul>
+                </div>
+              )}
+              <div className="import-actions">
+                <button 
+                  onClick={handleImport} 
+                  disabled={importing || conflictingFiles.length > 0}
+                  className="import-btn"
+                >
+                  {importing ? "Importing..." : "Import"}
+                </button>
+                <button 
+                  onClick={handleCancelImport} 
+                  disabled={importing}
+                  className="cancel-btn"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Conflict Resolution Dialog */}
+          {conflictingFiles.length > 0 && currentConflictIndex < conflictingFiles.length && !replaceAll && (
+            <div className="file-info" style={{ marginTop: '1rem', border: '2px solid #ffc107', backgroundColor: '#fff3cd' }}>
+              <h4 style={{ margin: '0 0 1rem 0', color: '#856404' }}>
+                File Already Exists ({currentConflictIndex + 1} of {conflictingFiles.length})
+              </h4>
+              <p style={{ margin: '0 0 1rem 0', fontWeight: 'bold', color: '#856404' }}>
+                {conflictingFiles[currentConflictIndex]}
+              </p>
+              <p style={{ margin: '0 0 1rem 0', color: '#856404' }}>
+                This file already exists. What would you like to do?
+              </p>
+              <div className="import-actions">
+                <button 
+                  onClick={() => handleConflictChoice('replace')}
+                  className="import-btn"
+                  style={{ backgroundColor: '#28a745' }}
+                >
+                  Replace
+                </button>
+                <button 
+                  onClick={() => handleConflictChoice('skip')}
+                  className="cancel-btn"
+                  style={{ backgroundColor: '#6c757d' }}
+                >
+                  Skip
+                </button>
+                <button 
+                  onClick={() => handleConflictChoice('replace-all')}
+                  className="import-btn"
+                  style={{ backgroundColor: '#17a2b8', marginLeft: 'auto' }}
+                >
+                  Replace All
+                </button>
+                <button 
+                  onClick={() => handleConflictChoice('cancel')}
+                  className="cancel-btn"
+                  style={{ backgroundColor: '#dc3545' }}
+                >
+                  Cancel Import
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {error && (
         <div className="error-message">
