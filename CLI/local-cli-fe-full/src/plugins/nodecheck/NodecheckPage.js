@@ -128,4 +128,10 @@ const NodecheckPage = ({ node }) => {
   );
 };
 
+// Plugin metadata - used by the plugin loader
+export const pluginMetadata = {
+  name: 'Node Check',
+  icon: null // Optional: add an icon emoji here if desired
+};
+
 export default NodecheckPage;
