@@ -26,7 +26,7 @@ except ImportError:
     stdio_client = None
 
 # Default configuration - can be overridden via environment variables
-DEFAULT_ANYLOG_MCP_SSE_URL = os.getenv("ANYLOG_MCP_SSE_URL", "http://23.239.12.151:32349/mcp/sse")
+DEFAULT_ANYLOG_MCP_SSE_URL = os.getenv("ANYLOG_MCP_SSE_URL", "http://50.116.13.109:32349/mcp/sse")
 DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 
 def sanitize_json_schema(schema: dict) -> dict:
@@ -133,9 +133,10 @@ class AnyLogMCPAgent:
         self.exit_stack: Optional[AsyncExitStack] = None
         self.stdio = None
         self.write = None
+        self.cached_tools: List[str] = []  # Cache tools to avoid redundant API calls
 
-    async def connect(self):
-        """Connect to AnyLog MCP server via mcp-proxy"""
+    async def connect(self, timeout: float = 10.0):
+        """Connect to AnyLog MCP server via mcp-proxy with timeout"""
         if not HAS_MCP:
             raise RuntimeError("MCP libraries are not installed. Please install them with: pip install mcp")
         
@@ -148,26 +149,60 @@ class AnyLogMCPAgent:
             args=[self.anylog_sse_url],  # stdio -> remote SSE
             env=None,
         )
-        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-        self.stdio, self.write = stdio_transport
-        self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
-        await self.session.initialize()
+        
+        # Connect with timeout to prevent hanging
+        try:
+            stdio_transport = await asyncio.wait_for(
+                self.exit_stack.enter_async_context(stdio_client(server_params)),
+                timeout=timeout
+            )
+            self.stdio, self.write = stdio_transport
+            self.session = await asyncio.wait_for(
+                self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write)),
+                timeout=timeout
+            )
+            await asyncio.wait_for(self.session.initialize(), timeout=timeout)
 
-        tools_resp = await self.session.list_tools()
-        return [t.name for t in tools_resp.tools]
+            # Cache tools for fast status checks (with timeout)
+            tools_resp = await asyncio.wait_for(self.session.list_tools(), timeout=timeout)
+            self.cached_tools = [t.name for t in tools_resp.tools]
+            return self.cached_tools
+        except asyncio.TimeoutError:
+            # Clean up on timeout
+            try:
+                await self.close()
+            except Exception:
+                pass
+            raise RuntimeError(f"Connection timeout after {timeout}s. MCP server may be unreachable or overloaded.")
 
-    async def ask(self, user_prompt: str) -> str:
-        """Ask a question to the MCP agent using Ollama"""
+    async def health_check(self, timeout: float = 3.0) -> bool:
+        """Verify the MCP connection is actually working with timeout"""
+        if not self.session:
+            return False
+        
+        try:
+            # Try a lightweight operation to verify connection is alive
+            # Use a short timeout to avoid blocking
+            await asyncio.wait_for(self.session.list_tools(), timeout=timeout)
+            return True
+        except (asyncio.TimeoutError, Exception) as e:
+            # Connection is dead, mark as disconnected
+            print(f"Health check failed: {e}")
+            return False
+
+    async def ask(self, user_prompt: str, conversation_history: Optional[List[Dict[str, str]]] = None, timeout: float = 120.0) -> str:
+        """Ask a question to the MCP agent using Ollama with timeout and conversation history"""
         if not self.session:
             raise RuntimeError("Not connected. Call connect() first.")
         
         if not HAS_OLLAMA:
             raise RuntimeError("Ollama is not installed. Please install it with: pip install ollama")
 
-        # Pull MCP tools and expose them to Ollama as tool schemas
-        tools_resp = await self.session.list_tools()
+        # Pull MCP tools and expose them to Ollama as tool schemas (with timeout)
+        tools_resp = await asyncio.wait_for(self.session.list_tools(), timeout=5.0)
         ollama_tools = mcp_tools_to_ollama_tools(tools_resp.tools)
 
+        # Build message history with system prompt
         messages: List[Dict[str, Any]] = [
             {
                 "role": "system",
@@ -180,10 +215,32 @@ class AnyLogMCPAgent:
                     "If required identifiers are missing, ask for dbms/table/unit/device."
                 ),
             },
-            {"role": "user", "content": user_prompt},
         ]
+        
+        # Add conversation history (limit to last 10 exchanges = 20 messages for efficiency)
+        if conversation_history:
+            # Take last 20 messages to keep context manageable for small LLMs
+            recent_history = conversation_history[-20:]
+            for msg in recent_history:
+                # Only include user and assistant messages, skip errors
+                if msg.get("role") in ["user", "assistant"]:
+                    messages.append({
+                        "role": msg.get("role"),
+                        "content": msg.get("content", "")
+                    })
+        
+        # Add current user prompt
+        messages.append({"role": "user", "content": user_prompt})
 
         # Agent loop: model decides tool calls; we execute them via MCP; feed results back
+        # Wrap entire loop in timeout to prevent hanging
+        try:
+            return await asyncio.wait_for(self._agent_loop(messages, ollama_tools), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"Request timed out after {timeout}s. The MCP server may be overloaded or unresponsive.")
+
+    async def _agent_loop(self, messages: List[Dict[str, Any]], ollama_tools: List[Dict[str, Any]]) -> str:
+        """Internal agent loop with timeouts on individual operations"""
         for _ in range(12):  # safety loop cap
             resp = await ollama_chat_async(
                 model=self.ollama_model,
@@ -199,7 +256,7 @@ class AnyLogMCPAgent:
             if not tool_calls:
                 return msg.get("content", "")
 
-            # Execute each tool call against AnyLog MCP
+            # Execute each tool call against AnyLog MCP (with timeout per call)
             for tc in tool_calls:
                 fn = tc["function"]
                 tool_name = fn["name"]
@@ -207,7 +264,13 @@ class AnyLogMCPAgent:
                 if isinstance(tool_args, str):
                     tool_args = json.loads(tool_args)
 
-                result = await self.session.call_tool(tool_name, tool_args)
+                try:
+                    result = await asyncio.wait_for(
+                        self.session.call_tool(tool_name, tool_args),
+                        timeout=30.0  # 30s timeout per tool call
+                    )
+                except asyncio.TimeoutError:
+                    raise RuntimeError(f"Tool call '{tool_name}' timed out after 30s. The MCP server may be overloaded.")
 
                 # Feed tool result back to the model
                 messages.append(
@@ -220,13 +283,16 @@ class AnyLogMCPAgent:
 
         return "Stopped (too many tool-call iterations). Try narrowing the question."
 
-    async def close(self):
-        """Close the MCP connection"""
+    async def close(self, timeout: float = 5.0):
+        """Close the MCP connection with timeout"""
         try:
-            # Close the exit stack if it exists
+            # Close the exit stack if it exists (with timeout)
             if self.exit_stack is not None:
                 try:
-                    await self.exit_stack.aclose()
+                    await asyncio.wait_for(self.exit_stack.aclose(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    # Force cleanup on timeout
+                    print(f"Warning: Connection close timed out after {timeout}s, forcing cleanup")
                 except RuntimeError as e:
                     # Handle "Attempted to exit cancel scope in a different task" error
                     # This happens when AsyncExitStack is closed from a different async task
@@ -247,10 +313,12 @@ class AnyLogMCPAgent:
             self.session = None
             self.stdio = None
             self.write = None
+            self.cached_tools = []
         except Exception:
             # Ensure state is reset even if cleanup fails
             self.session = None
             self.exit_stack = None
             self.stdio = None
             self.write = None
+            self.cached_tools = []
 

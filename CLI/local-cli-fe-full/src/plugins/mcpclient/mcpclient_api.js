@@ -117,8 +117,9 @@ export const listMCPTools = async () => {
 /**
  * Ask a question to the MCP agent
  */
-export const askMCP = async (prompt, anylogSseUrl = null, ollamaModel = null) => {
+export const askMCP = async (prompt, anylogSseUrl = null, ollamaModel = null, conversationHistory = null) => {
   try {
+    console.log('🌐 Sending request to MCP...');
     const response = await fetch(`${API_URL}/mcpclient/ask`, {
       method: 'POST',
       headers: {
@@ -128,15 +129,24 @@ export const askMCP = async (prompt, anylogSseUrl = null, ollamaModel = null) =>
         prompt,
         anylog_sse_url: anylogSseUrl,
         ollama_model: ollamaModel,
+        conversation_history: conversationHistory,
       }),
     });
+    console.log('🌐 Response status:', response.status, response.statusText);
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ HTTP error response:', error);
       throw new Error(error.detail || `HTTP error! status: ${response.status}`);
     }
-    return await response.json();
+    const result = await response.json();
+    console.log('🌐 Response JSON received:', {
+      hasAnswer: !!result.answer,
+      hasSuccess: !!result.success,
+      keys: Object.keys(result)
+    });
+    return result;
   } catch (error) {
-    console.error('Error asking MCP:', error);
+    console.error('❌ Error asking MCP:', error);
     throw error;
   }
 };

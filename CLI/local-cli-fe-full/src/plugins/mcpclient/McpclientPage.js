@@ -23,16 +23,49 @@ const McpclientPage = ({ node }) => {
   const [prompt, setPrompt] = useState('');
   const [answers, setAnswers] = useState([]);
   const [asking, setAsking] = useState(false);
-  const [anylogUrl, setAnylogUrl] = useState('http://23.239.12.151:32349/mcp/sse');
+  const [anylogUrl, setAnylogUrl] = useState('http://50.116.13.109:32349/mcp/sse');
   const [ollamaModel, setOllamaModel] = useState('qwen2.5:7b-instruct');
   const [showConfig, setShowConfig] = useState(false);
   const messagesEndRef = useRef(null);
   const previousModelRef = useRef(ollamaModel);
   const isInitialMountRef = useRef(true);
+  const HISTORY_STORAGE_KEY = 'mcpclient_chat_history';
+  const PENDING_REQUEST_KEY = 'mcpclient_pending_request';
+  const requestStartTimeRef = useRef(null);
+  const answersRef = useRef([]); // Track current answers for synchronous access
 
+  // Load conversation history from localStorage on mount
   useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        try {
+          const parsed = JSON.parse(savedHistory);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAnswers(parsed);
+            answersRef.current = parsed;
+            
+            // If last message is a response, ensure asking is false
+            const lastMessage = parsed[parsed.length - 1];
+            if (lastMessage && (lastMessage.type === 'assistant' || lastMessage.type === 'error')) {
+              setAsking(false);
+            }
+          }
+        } catch (parseErr) {
+          console.warn('Failed to parse saved history:', parseErr);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load chat history:', err);
+    }
     loadStatus();
   }, []);
+
+  // Update ref whenever answers change
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
 
   useEffect(() => {
     scrollToBottom();
@@ -95,6 +128,7 @@ const McpclientPage = ({ node }) => {
     try {
       setLoading(true);
       setError(null);
+      // Fast status check (uses cached tools, no network calls)
       const statusData = await getMCPStatus();
       setStatus(statusData);
       setConnected(statusData.connected);
@@ -109,38 +143,55 @@ const McpclientPage = ({ node }) => {
         previousModelRef.current = statusData.current_model;
       }
       
-      // Auto-connect if not connected
+      // Set tools from status (already cached, no extra API call needed)
+      if (statusData.available_tools && statusData.available_tools.length > 0) {
+        setTools(statusData.available_tools.map(name => ({ name })));
+      }
+      
+      // Stop loading here - show page immediately
+      setLoading(false);
+      
+      // Auto-connect in background if not connected (non-blocking)
       if (!statusData.connected) {
-        const defaultUrl = 'http://23.239.12.151:32349/mcp/sse';
+        const defaultUrl = 'http://50.116.13.109:32349/mcp/sse';
         const defaultModel = 'qwen2.5:7b-instruct';
-        try {
-          const result = await connectMCP(defaultUrl, defaultModel);
-          setConnected(true);
-          setStatus({
-            ...statusData,
-            connected: true,
-            available_tools: result.available_tools || [],
+        // Connect in background without blocking UI
+        connectMCP(defaultUrl, defaultModel)
+          .then((result) => {
+            setConnected(true);
+            setStatus({
+              ...statusData,
+              connected: true,
+              available_tools: result.available_tools || [],
+            });
+            setAnylogUrl(defaultUrl);
+            setOllamaModel(defaultModel);
+            // Tools already returned from connect, no need for separate loadTools() call
+            if (result.available_tools && result.available_tools.length > 0) {
+              setTools(result.available_tools.map(name => ({ name })));
+            }
+          })
+          .catch((connectErr) => {
+            console.error('Auto-connect failed:', connectErr);
+            // Show error but allow manual retry
+            setError(`Auto-connect failed: ${connectErr.message}. Please try connecting manually.`);
           });
-          setAnylogUrl(defaultUrl);
-          setOllamaModel(defaultModel);
-          await loadTools();
-        } catch (connectErr) {
-          console.error('Auto-connect failed:', connectErr);
-          // Show error but allow manual retry
-          setError(`Auto-connect failed: ${connectErr.message}. Please try connecting manually.`);
-        }
       } else {
-        // Already connected, just load tools
-        await loadTools();
+        // Already connected - load full tool details if needed (but don't block)
+        // Tools are already in status, but we might want full details
+        loadTools().catch(err => {
+          console.warn('Failed to load tool details:', err);
+          // Non-critical, don't show error
+        });
       }
     } catch (err) {
       console.error('Failed to load status:', err);
-      // Don't set error on initial load failure - try auto-connect anyway
-      if (!connected) {
-        const defaultUrl = 'http://23.239.12.151:32349/mcp/sse';
-        const defaultModel = 'qwen2.5:7b-instruct';
-        try {
-          const result = await connectMCP(defaultUrl, defaultModel);
+      setLoading(false);
+      // Try auto-connect in background anyway
+      const defaultUrl = 'http://50.116.13.109:32349/mcp/sse';
+      const defaultModel = 'qwen2.5:7b-instruct';
+      connectMCP(defaultUrl, defaultModel)
+        .then((result) => {
           setConnected(true);
           setStatus({
             connected: true,
@@ -152,14 +203,14 @@ const McpclientPage = ({ node }) => {
           });
           setAnylogUrl(defaultUrl);
           setOllamaModel(defaultModel);
-          await loadTools();
-        } catch (connectErr) {
+          if (result.available_tools && result.available_tools.length > 0) {
+            setTools(result.available_tools.map(name => ({ name })));
+          }
+        })
+        .catch((connectErr) => {
           console.error('Auto-connect failed:', connectErr);
-          setError(connectErr.message);
-        }
-      }
-    } finally {
-      setLoading(false);
+          setError(`Auto-connect failed: ${connectErr.message}. Please try connecting manually.`);
+        });
     }
   };
 
@@ -183,7 +234,13 @@ const McpclientPage = ({ node }) => {
         connected: true,
         available_tools: result.available_tools || [],
       });
-      await loadTools();
+      // Tools already returned from connect, no need for separate loadTools() call
+      if (result.available_tools && result.available_tools.length > 0) {
+        setTools(result.available_tools.map(name => ({ name })));
+      } else {
+        // Only load full tool details if not provided
+        await loadTools();
+      }
       setShowConfig(false);
       // Clear any previous errors on successful connection
       setError(null);
@@ -223,27 +280,120 @@ const McpclientPage = ({ node }) => {
     }
   };
 
-  const handleAsk = async () => {
-    if (!prompt.trim() || asking) return;
+  const handleAsk = async (retryPrompt = null) => {
+    const userPrompt = retryPrompt || prompt.trim();
+    if (!userPrompt || asking) return;
 
-    const userPrompt = prompt.trim();
-    setPrompt('');
+    if (!retryPrompt) {
+      setPrompt('');
+    }
+    
     setAsking(true);
     setError(null);
 
-    // Add user message to chat
-    const newAnswers = [...answers, { type: 'user', content: userPrompt }];
-    setAnswers(newAnswers);
+    // Add user message to chat immediately
+    setAnswers(prev => {
+      const newAnswers = [...prev, { type: 'user', content: userPrompt }];
+      answersRef.current = newAnswers;
+      return newAnswers;
+    });
+
+    // Add thinking message
+    setAnswers(prev => {
+      const withThinking = [...prev, { type: 'thinking', content: 'Thinking...' }];
+      answersRef.current = withThinking;
+      return withThinking;
+    });
 
     try {
-      const result = await askMCP(userPrompt, anylogUrl || null, ollamaModel || null);
-      setAnswers([...newAnswers, { type: 'assistant', content: result.answer }]);
+      // Build conversation history from current answers (excluding thinking and errors)
+      const currentAnswers = answersRef.current;
+      const conversationHistory = currentAnswers
+        .filter(msg => msg.type === 'user' || msg.type === 'assistant')
+        .map(msg => ({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        }));
+
+      // Call API
+      const result = await askMCP(
+        userPrompt, 
+        anylogUrl || null, 
+        ollamaModel || null,
+        conversationHistory.length > 0 ? conversationHistory : null
+      );
+      
+      // Validate response
+      if (!result || (!result.answer && !result.content)) {
+        throw new Error('Invalid response from server: missing answer field');
+      }
+      
+      const responseContent = result.answer || result.content || 'No response received';
+      
+      // Update state: remove thinking, add assistant response
+      setAnswers(prev => {
+        const withoutThinking = prev.filter(msg => msg.type !== 'thinking');
+        const updated = [...withoutThinking, { type: 'assistant', content: responseContent }];
+        answersRef.current = updated;
+        
+        // Save to localStorage immediately
+        try {
+          const persistent = updated.filter(msg => msg.type !== 'thinking');
+          if (persistent.length > 0) {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(persistent.slice(-20)));
+          }
+        } catch (e) {
+          console.error('Failed to save to localStorage:', e);
+        }
+        
+        return updated;
+      });
+      
+      setAsking(false);
+      
     } catch (err) {
       console.error('Failed to ask question:', err);
       setError(err.message);
-      setAnswers([...newAnswers, { type: 'error', content: err.message }]);
-    } finally {
+      
+      // Update state: remove thinking, add error
+      setAnswers(prev => {
+        const withoutThinking = prev.filter(msg => msg.type !== 'thinking');
+        const errorMsg = {
+          type: 'error',
+          content: err.message,
+          failedPrompt: userPrompt
+        };
+        const updated = [...withoutThinking, errorMsg];
+        answersRef.current = updated;
+        
+        // Save to localStorage immediately
+        try {
+          const persistent = updated.filter(msg => msg.type !== 'thinking');
+          if (persistent.length > 0) {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(persistent.slice(-20)));
+          }
+        } catch (e) {
+          console.error('Failed to save to localStorage:', e);
+        }
+        
+        return updated;
+      });
+      
       setAsking(false);
+    }
+  };
+
+
+  const handleRetry = (failedPrompt) => {
+    if (failedPrompt) {
+      handleAsk(failedPrompt);
+    }
+  };
+
+  const handleClearHistory = () => {
+    if (window.confirm('Clear chat history? This cannot be undone.')) {
+      setAnswers([]);
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
     }
   };
 
@@ -278,6 +428,12 @@ const McpclientPage = ({ node }) => {
       overflow: 'hidden',
       backgroundColor: '#f8f9fa'
     }}>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
       {/* Header */}
       <div style={{
         padding: '20px',
@@ -298,7 +454,7 @@ const McpclientPage = ({ node }) => {
           paddingBottom: '10px',
           display: 'inline-block'
         }}>
-          🤖 MCP Client
+          MCP Client
         </h2>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -314,6 +470,23 @@ const McpclientPage = ({ node }) => {
               {connected ? '● Connected' : '○ Disconnected'}
             </div>
           )}
+          <button
+            onClick={handleClearHistory}
+            disabled={answers.length === 0}
+            style={{
+              padding: '10px 20px',
+              fontSize: '14px',
+              background: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: answers.length === 0 ? 'not-allowed' : 'pointer',
+              fontWeight: '500',
+              opacity: answers.length === 0 ? 0.6 : 1
+            }}
+          >
+            🗑️ Clear History
+          </button>
           <button
             onClick={() => setShowConfig(!showConfig)}
             style={{
@@ -510,44 +683,97 @@ const McpclientPage = ({ node }) => {
             </div>
           ) : (
             <div>
-              {answers.map((answer, index) => (
-                <div
-                  key={index}
-                  style={{
-                    marginBottom: '20px',
-                    padding: '15px',
-                    borderRadius: '8px',
-                    backgroundColor: answer.type === 'user' ? '#e7f3ff' : answer.type === 'error' ? '#ffe7e7' : '#f8f9fa',
-                    borderLeft: `4px solid ${answer.type === 'user' ? '#007bff' : answer.type === 'error' ? '#dc3545' : '#28a745'}`
-                  }}
-                >
-                  <div style={{
-                    fontWeight: '600',
-                    marginBottom: '8px',
-                    color: answer.type === 'user' ? '#007bff' : answer.type === 'error' ? '#dc3545' : '#28a745'
-                  }}>
-                    {answer.type === 'user' ? '👤 You' : answer.type === 'error' ? '❌ Error' : '🤖 Assistant'}
-                  </div>
-                  <div style={{ lineHeight: '1.6' }}>
-                    {answer.type === 'assistant' ? (
-                      <MarkdownRenderer content={answer.content} />
-                    ) : (
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{answer.content}</div>
+              {answers.map((answer, index) => {
+                // Skip thinking messages - they're handled separately or already in answers
+                if (answer.type === 'thinking') {
+                  return (
+                    <div
+                      key={`thinking-${answer.timestamp || index}`}
+                      style={{
+                        marginBottom: '20px',
+                        padding: '15px',
+                        borderRadius: '8px',
+                        backgroundColor: '#f8f9fa',
+                        borderLeft: '4px solid #6c757d',
+                        animation: 'pulse 1.5s ease-in-out infinite'
+                      }}
+                    >
+                      <div style={{ fontWeight: '600', marginBottom: '8px', color: '#6c757d' }}>
+                        Assistant
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span>{answer.content}</span>
+                        <span style={{ fontSize: '18px' }}>⏳</span>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      marginBottom: '20px',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      backgroundColor: answer.type === 'user' ? '#e7f3ff' : answer.type === 'error' ? '#ffe7e7' : '#f8f9fa',
+                      borderLeft: `4px solid ${answer.type === 'user' ? '#007bff' : answer.type === 'error' ? '#dc3545' : '#28a745'}`
+                    }}
+                  >
+                    <div style={{
+                      fontWeight: '600',
+                      marginBottom: '8px',
+                      color: answer.type === 'user' ? '#007bff' : answer.type === 'error' ? '#dc3545' : '#28a745'
+                    }}>
+                      {answer.type === 'user' ? '👤 You' : answer.type === 'error' ? '❌ Error' : 'Assistant'}
+                    </div>
+                    <div style={{ lineHeight: '1.6' }}>
+                      {answer.type === 'assistant' ? (
+                        <MarkdownRenderer content={answer.content} />
+                      ) : (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{answer.content}</div>
+                      )}
+                    </div>
+                    {answer.type === 'error' && answer.failedPrompt && (
+                      <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                        <button
+                          onClick={() => handleRetry(answer.failedPrompt)}
+                          disabled={asking}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                            background: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: asking ? 'not-allowed' : 'pointer',
+                            fontWeight: '500',
+                            opacity: asking ? 0.6 : 1
+                          }}
+                        >
+                          🔄 Retry
+                        </button>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
-              {asking && (
+                );
+              })}
+              {/* Show additional thinking indicator if asking but no thinking message in answers yet */}
+              {asking && !answers.some(msg => msg.type === 'thinking') && (
                 <div style={{
                   padding: '15px',
                   borderRadius: '8px',
                   backgroundColor: '#f8f9fa',
-                  borderLeft: '4px solid #6c757d'
+                  borderLeft: '4px solid #6c757d',
+                  animation: 'pulse 1.5s ease-in-out infinite'
                 }}>
                   <div style={{ fontWeight: '600', marginBottom: '8px', color: '#6c757d' }}>
-                    🤖 Assistant
+                    Assistant
                   </div>
-                  <div>Thinking...</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span>Thinking...</span>
+                    <span style={{ fontSize: '18px' }}>⏳</span>
+                  </div>
                 </div>
               )}
               <div ref={messagesEndRef} />

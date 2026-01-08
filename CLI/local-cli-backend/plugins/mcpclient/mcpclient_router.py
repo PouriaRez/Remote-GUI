@@ -4,7 +4,7 @@ Integrates Ollama with AnyLog MCP for AI-powered maintenance copilot
 """
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Dict
 import os
 import asyncio
 
@@ -34,6 +34,7 @@ class MCPAskRequest(BaseModel):
     prompt: str
     anylog_sse_url: Optional[str] = None
     ollama_model: Optional[str] = None
+    conversation_history: Optional[List[Dict[str, str]]] = None  # List of {role: "user"|"assistant", content: "..."}
 
 class MCPStatusResponse(BaseModel):
     connected: bool
@@ -46,26 +47,64 @@ class MCPStatusResponse(BaseModel):
 # Global agent instance (per-request would be better, but for simplicity we'll use one)
 _agent_instance: Optional[AnyLogMCPAgent] = None
 _agent_lock = asyncio.Lock()
+_connecting = False  # Flag to prevent concurrent connection attempts
 
 async def get_or_create_agent(anylog_sse_url: Optional[str] = None, ollama_model: Optional[str] = None) -> AnyLogMCPAgent:
-    """Get or create a global agent instance"""
-    global _agent_instance
+    """Get or create a global agent instance with connection reuse"""
+    global _agent_instance, _connecting
     
     async with _agent_lock:
-        if _agent_instance is None:
-            url = anylog_sse_url or os.getenv("ANYLOG_MCP_SSE_URL", DEFAULT_ANYLOG_MCP_SSE_URL)
-            model = ollama_model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+        url = anylog_sse_url or os.getenv("ANYLOG_MCP_SSE_URL", DEFAULT_ANYLOG_MCP_SSE_URL)
+        model = ollama_model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+        
+        # Reuse existing connection if URL and model match
+        if _agent_instance is not None:
+            if (_agent_instance.anylog_sse_url == url and 
+                _agent_instance.ollama_model == model and
+                _agent_instance.session is not None):
+                # Verify it's still alive
+                if await _agent_instance.health_check():
+                    return _agent_instance
+                else:
+                    # Connection is dead, clean it up
+                    try:
+                        await asyncio.wait_for(_agent_instance.close(), timeout=5.0)
+                    except Exception:
+                        pass
+                    _agent_instance = None
+        
+        # Prevent concurrent connection attempts
+        if _connecting:
+            raise RuntimeError("Another connection attempt is in progress. Please wait.")
+        
+        _connecting = True
+        try:
             _agent_instance = AnyLogMCPAgent(anylog_sse_url=url, ollama_model=model)
-            await _agent_instance.connect()
-        return _agent_instance
+            await _agent_instance.connect(timeout=10.0)
+            return _agent_instance
+        finally:
+            _connecting = False
 
-async def close_agent():
-    """Close the global agent instance"""
-    global _agent_instance
+async def close_agent(timeout: float = 5.0):
+    """Close the global agent instance with timeout"""
+    global _agent_instance, _connecting
     async with _agent_lock:
         if _agent_instance is not None:
-            await _agent_instance.close()
-            _agent_instance = None
+            try:
+                await asyncio.wait_for(_agent_instance.close(), timeout=timeout)
+            except asyncio.TimeoutError:
+                # Force cleanup on timeout
+                print("Warning: Connection close timed out, forcing cleanup")
+                _agent_instance.session = None
+                _agent_instance.stdio = None
+                _agent_instance.write = None
+                _agent_instance.exit_stack = None
+                _agent_instance.cached_tools = []
+            except Exception as e:
+                print(f"Error closing agent: {e}")
+            finally:
+                _agent_instance = None
+                _connecting = False
 
 # API endpoints
 @api_router.get("/")
@@ -92,7 +131,7 @@ async def mcpclient_info():
 
 @api_router.get("/status")
 async def get_status():
-    """Get MCP client connection status"""
+    """Get MCP client connection status (verifies connection is actually working)"""
     global _agent_instance
     
     if not HAS_MCP_AGENT:
@@ -115,18 +154,15 @@ async def get_status():
             anylog_url=_agent_instance.anylog_sse_url if _agent_instance else None
         )
     
-    try:
-        tools_resp = await _agent_instance.session.list_tools()
-        tools = [t.name for t in tools_resp.tools]
-        return MCPStatusResponse(
-            connected=True,
-            available_tools=tools,
-            ollama_available=HAS_OLLAMA,
-            mcp_available=HAS_MCP,
-            current_model=_agent_instance.ollama_model,
-            anylog_url=_agent_instance.anylog_sse_url
-        )
-    except Exception:
+    # Verify connection is actually working with a health check
+    is_alive = await _agent_instance.health_check()
+    
+    if not is_alive:
+        # Connection is dead, clean up
+        try:
+            await close_agent()
+        except Exception:
+            pass
         return MCPStatusResponse(
             connected=False,
             available_tools=[],
@@ -135,10 +171,20 @@ async def get_status():
             current_model=_agent_instance.ollama_model if _agent_instance else None,
             anylog_url=_agent_instance.anylog_sse_url if _agent_instance else None
         )
+    
+    # Connection is alive, use cached tools
+    return MCPStatusResponse(
+        connected=True,
+        available_tools=_agent_instance.cached_tools,
+        ollama_available=HAS_OLLAMA,
+        mcp_available=HAS_MCP,
+        current_model=_agent_instance.ollama_model,
+        anylog_url=_agent_instance.anylog_sse_url
+    )
 
 @api_router.post("/connect")
 async def connect_mcp(request: MCPConnectRequest):
-    """Connect to AnyLog MCP server"""
+    """Connect to AnyLog MCP server with connection reuse"""
     if not HAS_MCP_AGENT:
         raise HTTPException(
             status_code=500,
@@ -148,15 +194,41 @@ async def connect_mcp(request: MCPConnectRequest):
     try:
         global _agent_instance
         
-        # Close existing connection if any
-        await close_agent()
-        
-        # Create new connection
         url = request.anylog_sse_url or os.getenv("ANYLOG_MCP_SSE_URL", DEFAULT_ANYLOG_MCP_SSE_URL)
         model = request.ollama_model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
         
-        _agent_instance = AnyLogMCPAgent(anylog_sse_url=url, ollama_model=model)
-        tools = await _agent_instance.connect()
+        # Check if we can reuse existing connection
+        async with _agent_lock:
+            if (_agent_instance is not None and 
+                _agent_instance.anylog_sse_url == url and 
+                _agent_instance.ollama_model == model and
+                _agent_instance.session is not None):
+                # Verify it's still alive
+                if await _agent_instance.health_check():
+                    return {
+                        "success": True,
+                        "message": "Reusing existing connection to AnyLog MCP",
+                        "available_tools": _agent_instance.cached_tools,
+                        "ollama_model": model,
+                        "anylog_url": url
+                    }
+                else:
+                    # Connection is dead, clean it up
+                    try:
+                        await asyncio.wait_for(_agent_instance.close(), timeout=5.0)
+                    except Exception:
+                        pass
+                    _agent_instance = None
+        
+        # Close existing connection if URL/model changed
+        if _agent_instance is not None:
+            if (_agent_instance.anylog_sse_url != url or 
+                _agent_instance.ollama_model != model):
+                await close_agent()
+        
+        # Create new connection (or reuse if same URL/model)
+        agent = await get_or_create_agent(url, model)
+        tools = agent.cached_tools
         
         return {
             "success": True,
@@ -210,19 +282,41 @@ async def list_tools():
         )
     
     try:
-        tools_resp = await _agent_instance.session.list_tools()
-        tools = []
-        for t in tools_resp.tools:
-            tools.append({
-                "name": t.name,
-                "description": t.description or "",
-                "inputSchema": t.inputSchema or {}
-            })
-        return {
-            "success": True,
-            "tools": tools,
-            "count": len(tools)
-        }
+        # Use cached tools if available, otherwise fetch fresh (with timeout)
+        if _agent_instance.cached_tools:
+            # We have cached tool names, but need full details - fetch once with timeout
+            tools_resp = await asyncio.wait_for(_agent_instance.session.list_tools(), timeout=5.0)
+            tools = []
+            for t in tools_resp.tools:
+                tools.append({
+                    "name": t.name,
+                    "description": t.description or "",
+                    "inputSchema": t.inputSchema or {}
+                })
+            return {
+                "success": True,
+                "tools": tools,
+                "count": len(tools)
+            }
+        else:
+            # No cached tools, fetch fresh with timeout
+            tools_resp = await asyncio.wait_for(_agent_instance.session.list_tools(), timeout=5.0)
+            tools = []
+            for t in tools_resp.tools:
+                tools.append({
+                    "name": t.name,
+                    "description": t.description or "",
+                    "inputSchema": t.inputSchema or {}
+                })
+            # Update cache
+            _agent_instance.cached_tools = [t.name for t in tools_resp.tools]
+            return {
+                "success": True,
+                "tools": tools,
+                "count": len(tools)
+            }
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=500, detail="Failed to list tools: Operation timed out after 5s")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list tools: {str(e)}")
 
@@ -238,22 +332,40 @@ async def ask_question(request: MCPAskRequest):
     try:
         global _agent_instance
         
-        # If not connected, connect first
-        if _agent_instance is None or _agent_instance.session is None:
-            url = request.anylog_sse_url or os.getenv("ANYLOG_MCP_SSE_URL", DEFAULT_ANYLOG_MCP_SSE_URL)
-            model = request.ollama_model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
-            _agent_instance = AnyLogMCPAgent(anylog_sse_url=url, ollama_model=model)
-            await _agent_instance.connect()
+        # Get or create connection (with reuse logic)
+        url = request.anylog_sse_url or os.getenv("ANYLOG_MCP_SSE_URL", DEFAULT_ANYLOG_MCP_SSE_URL)
+        model = request.ollama_model or os.getenv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+        agent = await get_or_create_agent(url, model)
         
-        # Ask the question
-        answer = await _agent_instance.ask(request.prompt)
+        # Ask the question (with timeout and conversation history)
+        print(f"📝 MCP Ask Request - Prompt: {request.prompt[:100]}...")
+        print(f"📝 Conversation history length: {len(request.conversation_history) if request.conversation_history else 0}")
         
-        return {
+        answer = await agent.ask(
+            request.prompt, 
+            conversation_history=request.conversation_history,
+            timeout=120.0
+        )
+        
+        print(f"✅ MCP Ask Response - Answer length: {len(answer) if answer else 0}")
+        print(f"✅ MCP Ask Response - Answer preview: {answer[:200] if answer else 'None'}...")
+        
+        response = {
             "success": True,
             "answer": answer,
             "prompt": request.prompt
         }
+        
+        print(f"✅ Returning response with answer field: {bool(response.get('answer'))}")
+        return response
     except Exception as e:
+        # If connection error, mark as disconnected
+        error_str = str(e).lower()
+        if "connection" in error_str or "closed" in error_str or "not connected" in error_str:
+            try:
+                await close_agent()
+            except Exception:
+                pass
         raise HTTPException(status_code=500, detail=f"Failed to process question: {str(e)}")
 
 @api_router.websocket("/ws")
