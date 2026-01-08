@@ -1,6 +1,6 @@
 services:
   remote-gui:
-    image: anylogco/remote-gui:beta
+    image: anylogco/remote-gui:mcp
     container_name: remote-gui
     restart: always
     stdin_open: true
