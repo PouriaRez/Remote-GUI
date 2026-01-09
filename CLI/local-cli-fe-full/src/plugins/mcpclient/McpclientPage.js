@@ -5,6 +5,7 @@ import {
   disconnectMCP,
   listMCPTools,
   askMCP,
+  listModels,
 } from './mcpclient_api';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -23,8 +24,46 @@ const McpclientPage = ({ node }) => {
   const [prompt, setPrompt] = useState('');
   const [answers, setAnswers] = useState([]);
   const [asking, setAsking] = useState(false);
+  const abortControllerRef = useRef(null);
   const [anylogUrl, setAnylogUrl] = useState('http://50.116.13.109:32349/mcp/sse');
-  const [ollamaModel, setOllamaModel] = useState('qwen2.5:7b-instruct');
+  const [ollamaModel, setOllamaModel] = useState('');
+  const [llmEndpoint, setLlmEndpoint] = useState(''); // Docker container endpoint (e.g., "http://localhost:11434")
+  const [useDocker, setUseDocker] = useState(false); // Toggle between Docker and Local LLM
+  const [dockerModels, setDockerModels] = useState([]); // Models available from Docker container
+  const [loadingDockerModels, setLoadingDockerModels] = useState(false);
+  
+  // Handle toggle between Docker and Local
+  const handleToggleLLM = async (newUseDocker) => {
+    setUseDocker(newUseDocker);
+    
+    if (newUseDocker) {
+      // Switching to Docker - keep endpoint if it exists
+      // Models will load automatically via useEffect
+    } else {
+      // Switching to Local - clear endpoint and disconnect if connected
+      setLlmEndpoint('');
+      setDockerModels([]);
+      setOllamaModel(''); // Clear model selection
+      
+      // Disconnect and reconnect if currently connected
+      if (connected) {
+        try {
+          setLoading(true);
+          await disconnectMCP();
+          setConnected(false);
+          // Reload models for local
+          await loadModels(null);
+        } catch (err) {
+          console.error('Failed to disconnect when switching to local:', err);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // Just reload models for local
+        await loadModels(null);
+      }
+    }
+  };
   const [showConfig, setShowConfig] = useState(false);
   const messagesEndRef = useRef(null);
   const previousModelRef = useRef(ollamaModel);
@@ -66,6 +105,20 @@ const McpclientPage = ({ node }) => {
     answersRef.current = answers;
   }, [answers]);
 
+  // Load models when endpoint changes, useDocker toggles, or on mount
+  useEffect(() => {
+    if (useDocker && llmEndpoint && llmEndpoint.trim()) {
+      // Debounce Docker endpoint changes
+      const timeoutId = setTimeout(() => {
+        loadModels(llmEndpoint);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    } else if (!useDocker) {
+      // Load local models immediately when not using Docker
+      loadModels(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [llmEndpoint, useDocker]);
 
   useEffect(() => {
     scrollToBottom();
@@ -94,7 +147,8 @@ const McpclientPage = ({ node }) => {
           // Disconnect first
           await disconnectMCP();
           // Then connect with new model
-          const result = await connectMCP(anylogUrl || null, ollamaModel || null);
+          const endpoint = (useDocker && llmEndpoint && llmEndpoint.trim()) ? llmEndpoint : null;
+          const result = await connectMCP(anylogUrl || null, ollamaModel || null, endpoint);
           setConnected(true);
           // Update status with fresh data
           const freshStatus = await getMCPStatus();
@@ -124,6 +178,34 @@ const McpclientPage = ({ node }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const loadModels = async (endpoint = null) => {
+    try {
+      setLoadingDockerModels(true);
+      setError(null);
+      const result = await listModels(endpoint ? endpoint.trim() : null);
+      console.log('📋 Models API response:', result);
+      if (result.success && result.models) {
+        console.log('📋 Models received:', result.models);
+        setDockerModels(result.models);
+        // Auto-select first model if available and no model is selected
+        if (result.models.length > 0 && !ollamaModel) {
+          const firstModelName = result.models[0].name || result.models[0].model;
+          console.log('📋 Auto-selecting first model:', firstModelName);
+          setOllamaModel(firstModelName);
+        }
+      } else {
+        console.warn('📋 No models in response or success=false');
+        setDockerModels([]);
+      }
+    } catch (err) {
+      console.error('Failed to load models:', err);
+      setDockerModels([]);
+      // Don't show error for model loading - it's optional
+    } finally {
+      setLoadingDockerModels(false);
+    }
+  };
+
   const loadStatus = async () => {
     try {
       setLoading(true);
@@ -141,6 +223,14 @@ const McpclientPage = ({ node }) => {
         setOllamaModel(statusData.current_model);
         // Update ref to prevent unnecessary reconnection
         previousModelRef.current = statusData.current_model;
+      }
+      if (statusData.llm_endpoint) {
+        setLlmEndpoint(statusData.llm_endpoint);
+        // Load models if endpoint is set
+        await loadModels(statusData.llm_endpoint);
+      } else {
+        // Load local models if no Docker endpoint
+        await loadModels(null);
       }
       
       // Set tools from status (already cached, no extra API call needed)
@@ -227,7 +317,9 @@ const McpclientPage = ({ node }) => {
     try {
       setError(null);
       setLoading(true);
-      const result = await connectMCP(anylogUrl || null, ollamaModel || null);
+      // Use endpoint only if Docker toggle is on and endpoint is provided
+      const endpoint = (useDocker && llmEndpoint && llmEndpoint.trim()) ? llmEndpoint : null;
+      const result = await connectMCP(anylogUrl || null, ollamaModel || null, endpoint);
       setConnected(true);
       setStatus({
         ...status,
@@ -283,11 +375,19 @@ const McpclientPage = ({ node }) => {
   const handleAsk = async (retryPrompt = null) => {
     const userPrompt = retryPrompt || prompt.trim();
     if (!userPrompt || asking) return;
+    
+    // Don't allow asking if no model is selected
+    if (!ollamaModel || !ollamaModel.trim()) {
+      setError('Please select a model before asking a question.');
+      return;
+    }
 
     if (!retryPrompt) {
       setPrompt('');
     }
     
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
     setAsking(true);
     setError(null);
 
@@ -315,12 +415,17 @@ const McpclientPage = ({ node }) => {
           content: msg.content
         }));
 
-      // Call API
+      // Use endpoint only if Docker toggle is on and endpoint is provided
+      const endpoint = (useDocker && llmEndpoint && llmEndpoint.trim()) ? llmEndpoint : null;
+      
+      // Call API with abort signal
       const result = await askMCP(
         userPrompt, 
         anylogUrl || null, 
         ollamaModel || null,
-        conversationHistory.length > 0 ? conversationHistory : null
+        conversationHistory.length > 0 ? conversationHistory : null,
+        endpoint,
+        abortControllerRef.current?.signal
       );
       
       // Validate response
@@ -350,8 +455,23 @@ const McpclientPage = ({ node }) => {
       });
       
       setAsking(false);
+      abortControllerRef.current = null;
       
     } catch (err) {
+      // Check if request was aborted
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        console.log('Request was cancelled by user');
+        // Remove thinking message and restore state
+        setAnswers(prev => {
+          const withoutThinking = prev.filter(msg => msg.type !== 'thinking');
+          answersRef.current = withoutThinking;
+          return withoutThinking;
+        });
+        setAsking(false);
+        abortControllerRef.current = null;
+        return;
+      }
+      
       console.error('Failed to ask question:', err);
       setError(err.message);
       
@@ -380,6 +500,25 @@ const McpclientPage = ({ node }) => {
       });
       
       setAsking(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      console.log('Cancelling request...');
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      
+      // Remove thinking message
+      setAnswers(prev => {
+        const withoutThinking = prev.filter(msg => msg.type !== 'thinking');
+        answersRef.current = withoutThinking;
+        return withoutThinking;
+      });
+      
+      setAsking(false);
+      setError('Request cancelled by user.');
     }
   };
 
@@ -394,6 +533,134 @@ const McpclientPage = ({ node }) => {
     if (window.confirm('Clear chat history? This cannot be undone.')) {
       setAnswers([]);
       localStorage.removeItem(HISTORY_STORAGE_KEY);
+    }
+  };
+
+  const handleExportToPDF = async () => {
+    if (answers.length === 0) {
+      setError('No chat history to export.');
+      return;
+    }
+
+    try {
+      // Dynamic import of jsPDF to avoid loading it if not needed
+      const { default: jsPDF } = await import('jspdf');
+      
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+      const lineHeight = 7;
+      const spacing = 8;
+
+      // Add title
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MCP Client Chat History', margin, yPosition);
+      yPosition += lineHeight * 2;
+
+      // Add metadata
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const timestamp = new Date().toLocaleString();
+      doc.text(`Exported: ${timestamp}`, margin, yPosition);
+      yPosition += lineHeight;
+      
+      // Add connection info if available
+      if (anylogUrl) {
+        doc.text(`AnyLog URL: ${anylogUrl}`, margin, yPosition);
+        yPosition += lineHeight;
+      }
+      if (ollamaModel) {
+        doc.text(`Model: ${ollamaModel}`, margin, yPosition);
+        yPosition += lineHeight;
+      }
+      if (llmEndpoint) {
+        doc.text(`LLM Endpoint: ${llmEndpoint}`, margin, yPosition);
+        yPosition += lineHeight;
+      }
+      
+      yPosition += lineHeight;
+
+      // Process each message (filter out thinking messages)
+      const messagesToExport = answers.filter(msg => msg.type !== 'thinking');
+      
+      messagesToExport.forEach((answer, index) => {
+        // Check if we need a new page
+        if (yPosition > pageHeight - margin - lineHeight * 8) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Add message header with background color indicator
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        
+        // Set color based on message type
+        if (answer.type === 'user') {
+          doc.setTextColor(0, 123, 255); // Blue
+        } else if (answer.type === 'error') {
+          doc.setTextColor(220, 53, 69); // Red
+        } else {
+          doc.setTextColor(40, 167, 69); // Green
+        }
+        
+        const role = answer.type === 'user' ? 'You' : answer.type === 'error' ? 'Error' : 'Assistant';
+        doc.text(role, margin, yPosition);
+        yPosition += lineHeight * 1.2;
+
+        // Add message content
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0); // Black for content
+        
+        // Convert markdown-like content to plain text (simple conversion)
+        let content = answer.content || '';
+        // Remove markdown code blocks but preserve content
+        content = content.replace(/```[\w]*\n?([\s\S]*?)```/g, (match, code) => {
+          return `[Code Block]\n${code.trim()}`;
+        });
+        // Remove markdown inline code
+        content = content.replace(/`([^`]+)`/g, '$1');
+        // Remove markdown links but keep text
+        content = content.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+        // Remove markdown bold/italic but keep text
+        content = content.replace(/\*\*([^\*]+)\*\*/g, '$1');
+        content = content.replace(/\*([^\*]+)\*/g, '$1');
+        // Remove markdown headers but keep text
+        content = content.replace(/^#+\s+/gm, '');
+        // Remove markdown list markers
+        content = content.replace(/^[\s]*[-*+]\s+/gm, '• ');
+        // Remove markdown horizontal rules
+        content = content.replace(/^---$/gm, '');
+        
+        // Split content into lines and wrap text
+        const lines = doc.splitTextToSize(content, maxWidth);
+        
+        lines.forEach((line) => {
+          if (yPosition > pageHeight - margin - lineHeight) {
+            doc.addPage();
+            yPosition = margin;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += lineHeight;
+        });
+
+        // Add spacing between messages
+        yPosition += spacing;
+      });
+
+      // Save the PDF
+      const filename = `mcp-chat-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      
+      // Show success message
+      setError(null);
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+      setError('Failed to export PDF: ' + error.message);
     }
   };
 
@@ -471,6 +738,24 @@ const McpclientPage = ({ node }) => {
             </div>
           )}
           <button
+            onClick={handleExportToPDF}
+            disabled={answers.length === 0}
+            style={{
+              padding: '10px 20px',
+              fontSize: '14px',
+              background: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: answers.length === 0 ? 'not-allowed' : 'pointer',
+              fontWeight: '500',
+              opacity: answers.length === 0 ? 0.6 : 1,
+              marginRight: '10px'
+            }}
+          >
+            📄 Export to PDF
+          </button>
+          <button
             onClick={handleClearHistory}
             disabled={answers.length === 0}
             style={{
@@ -523,7 +808,7 @@ const McpclientPage = ({ node }) => {
           ) : (
             <button
               onClick={handleConnect}
-              disabled={loading || !anylogUrl.trim()}
+              disabled={loading || !anylogUrl.trim() || !ollamaModel.trim()}
               style={{
                 padding: '10px 20px',
                 fontSize: '14px',
@@ -531,9 +816,9 @@ const McpclientPage = ({ node }) => {
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: (loading || !anylogUrl.trim()) ? 'not-allowed' : 'pointer',
+                cursor: (loading || !anylogUrl.trim() || !ollamaModel.trim()) ? 'not-allowed' : 'pointer',
                 fontWeight: '500',
-                opacity: (loading || !anylogUrl.trim()) ? 0.6 : 1
+                opacity: (loading || !anylogUrl.trim() || !ollamaModel.trim()) ? 0.6 : 1
               }}
             >
               Connect
@@ -571,6 +856,101 @@ const McpclientPage = ({ node }) => {
               />
             </div>
             <div>
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: '500' }}>
+                LLM Source:
+              </label>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', alignItems: 'center' }}>
+                <button
+                  onClick={() => handleToggleLLM(false)}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                    background: !useDocker ? '#28a745' : '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    opacity: !useDocker ? 1 : 0.6
+                  }}
+                >
+                  💻 Local Ollama
+                </button>
+                <button
+                  onClick={() => handleToggleLLM(true)}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                    background: useDocker ? '#007bff' : '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    opacity: useDocker ? 1 : 0.6
+                  }}
+                >
+                  🐳 Docker Ollama
+                </button>
+              </div>
+              {useDocker && (
+                <>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
+                    Docker LLM Endpoint:
+                  </label>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={llmEndpoint}
+                      onChange={(e) => setLlmEndpoint(e.target.value)}
+                      placeholder="http://localhost:11434"
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        border: '1px solid #ced4da',
+                        borderRadius: '4px',
+                        fontSize: '14px'
+                      }}
+                    />
+                    <button
+                      onClick={() => loadModels(llmEndpoint || null)}
+                      disabled={loadingDockerModels || !llmEndpoint || !llmEndpoint.trim()}
+                      style={{
+                        padding: '10px 15px',
+                        fontSize: '14px',
+                        background: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: (loadingDockerModels || !llmEndpoint || !llmEndpoint.trim()) ? 'not-allowed' : 'pointer',
+                        fontWeight: '500',
+                        opacity: (loadingDockerModels || !llmEndpoint || !llmEndpoint.trim()) ? 0.6 : 1,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {loadingDockerModels ? 'Loading...' : '🔄 Refresh Models'}
+                    </button>
+                  </div>
+                  <div style={{ marginTop: '5px', fontSize: '12px', color: '#6c757d' }}>
+                    {loadingDockerModels 
+                      ? 'Loading models...' 
+                      : dockerModels.length > 0 
+                        ? `Found ${dockerModels.length} model(s) from Docker` 
+                        : 'No models found or endpoint unreachable'}
+                  </div>
+                </>
+              )}
+              {!useDocker && (
+                <div style={{ marginTop: '5px', fontSize: '12px', color: '#6c757d' }}>
+                  {loadingDockerModels 
+                    ? 'Loading models...' 
+                    : dockerModels.length > 0 
+                      ? `Found ${dockerModels.length} model(s) from local Ollama` 
+                      : 'No local models found. Make sure Ollama is running and install models with: ollama pull <model-name>'}
+                </div>
+              )}
+            </div>
+            <div>
               <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>
                 Ollama Model:
               </label>
@@ -585,10 +965,27 @@ const McpclientPage = ({ node }) => {
                   fontSize: '14px'
                 }}
               >
-                <option value="qwen2.5:7b-instruct">qwen2.5:7b-instruct</option>
-                <option value="gpt-oss:20b">gpt-oss:20b</option>
-                <option value="mistral:7b-instruct">mistral:7b-instruct</option>
-                <option value="llama3.1:8b-instruct">llama3.1:8b-instruct</option>
+                {dockerModels.length > 0 ? (
+                  // Show models from Docker or local Ollama
+                  dockerModels.map((model, index) => {
+                    // Try multiple possible fields for model name
+                    const modelName = model.name || model.model || model.digest || `model-${index}`;
+                    console.log(`📋 Model ${index}:`, model, '-> name:', modelName);
+                    if (!modelName || modelName === `model-${index}`) {
+                      console.warn(`⚠️ Model ${index} has no name!`, model);
+                    }
+                    return (
+                      <option key={modelName || `model-${index}`} value={modelName || `model-${index}`}>
+                        {modelName || `Unknown Model ${index + 1}`}
+                      </option>
+                    );
+                  })
+                ) : (
+                  // No models available - show empty state
+                  <option value="" disabled>
+                    {loadingDockerModels ? 'Loading models...' : 'No models available'}
+                  </option>
+                )}
               </select>
             </div>
           </div>
@@ -791,8 +1188,14 @@ const McpclientPage = ({ node }) => {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder={connected ? "Ask a question..." : "Connect to MCP first..."}
-            disabled={!connected || asking}
+            placeholder={
+              !connected 
+                ? "Connect to MCP first..." 
+                : !ollamaModel || !ollamaModel.trim()
+                  ? "Please select a model first..."
+                  : "Ask a question..."
+            }
+            disabled={!connected || asking || !ollamaModel || !ollamaModel.trim()}
             style={{
               flex: 1,
               padding: '12px',
@@ -801,26 +1204,48 @@ const McpclientPage = ({ node }) => {
               fontSize: '14px',
               resize: 'none',
               minHeight: '60px',
-              fontFamily: 'inherit'
+              fontFamily: 'inherit',
+              backgroundColor: (!connected || asking || !ollamaModel || !ollamaModel.trim()) ? '#f5f5f5' : 'white',
+              color: (!connected || asking || !ollamaModel || !ollamaModel.trim()) ? '#999' : 'inherit',
+              cursor: (!connected || asking || !ollamaModel || !ollamaModel.trim()) ? 'not-allowed' : 'text'
             }}
           />
-          <button
-            onClick={handleAsk}
-            disabled={!connected || asking || !prompt.trim()}
-            style={{
-              padding: '12px 24px',
-              fontSize: '14px',
-              background: connected && prompt.trim() ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: (connected && prompt.trim() && !asking) ? 'pointer' : 'not-allowed',
-              fontWeight: '500',
-              opacity: (connected && prompt.trim() && !asking) ? 1 : 0.6
-            }}
-          >
-            {asking ? 'Sending...' : 'Send'}
-          </button>
+          {asking ? (
+            <button
+              onClick={handleCancel}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                background: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                opacity: 1
+              }}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={handleAsk}
+              disabled={!connected || asking || !prompt.trim() || !ollamaModel || !ollamaModel.trim()}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                background: (connected && prompt.trim() && ollamaModel && ollamaModel.trim() && !asking) ? '#007bff' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: (connected && prompt.trim() && ollamaModel && ollamaModel.trim() && !asking) ? 'pointer' : 'not-allowed',
+                fontWeight: '500',
+                opacity: (connected && prompt.trim() && ollamaModel && ollamaModel.trim() && !asking) ? 1 : 0.6
+              }}
+            >
+              Send
+            </button>
+          )}
         </div>
       </div>
     </div>

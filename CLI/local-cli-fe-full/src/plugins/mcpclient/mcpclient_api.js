@@ -36,9 +36,37 @@ export const getMCPStatus = async () => {
 };
 
 /**
+ * List available models from Docker Ollama container or local Ollama
+ */
+export const listModels = async (llmEndpoint = null) => {
+  try {
+    const url = llmEndpoint 
+      ? `${API_URL}/mcpclient/models?llm_endpoint=${encodeURIComponent(llmEndpoint)}`
+      : `${API_URL}/mcpclient/models`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error listing models:', error);
+    throw error;
+  }
+};
+
+/**
+ * @deprecated Use listModels instead
+ * List available models from a Docker Ollama container
+ */
+export const listModelsFromDocker = async (llmEndpoint) => {
+  return listModels(llmEndpoint);
+};
+
+/**
  * Connect to AnyLog MCP
  */
-export const connectMCP = async (anylogSseUrl = null, ollamaModel = null) => {
+export const connectMCP = async (anylogSseUrl = null, ollamaModel = null, llmEndpoint = null) => {
   try {
     const response = await fetch(`${API_URL}/mcpclient/connect`, {
       method: 'POST',
@@ -48,6 +76,7 @@ export const connectMCP = async (anylogSseUrl = null, ollamaModel = null) => {
       body: JSON.stringify({
         anylog_sse_url: anylogSseUrl,
         ollama_model: ollamaModel,
+        llm_endpoint: llmEndpoint,
       }),
     });
     if (!response.ok) {
@@ -117,7 +146,7 @@ export const listMCPTools = async () => {
 /**
  * Ask a question to the MCP agent
  */
-export const askMCP = async (prompt, anylogSseUrl = null, ollamaModel = null, conversationHistory = null) => {
+export const askMCP = async (prompt, anylogSseUrl = null, ollamaModel = null, conversationHistory = null, llmEndpoint = null, abortSignal = null) => {
   try {
     console.log('🌐 Sending request to MCP...');
     const response = await fetch(`${API_URL}/mcpclient/ask`, {
@@ -130,7 +159,9 @@ export const askMCP = async (prompt, anylogSseUrl = null, ollamaModel = null, co
         anylog_sse_url: anylogSseUrl,
         ollama_model: ollamaModel,
         conversation_history: conversationHistory,
+        llm_endpoint: llmEndpoint,
       }),
+      signal: abortSignal,
     });
     console.log('🌐 Response status:', response.status, response.statusText);
     if (!response.ok) {
