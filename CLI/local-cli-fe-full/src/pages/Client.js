@@ -256,8 +256,18 @@ const Client = ({ node }) => {
     setExecutionTime(null);
 
     try {
+      // Transform blobs: if video_table exists, use it as table_name for backend compatibility
+      const transformedBlobs = selectedBlobs.map(blob => {
+        const transformed = { ...blob };
+        // If video_table exists, use it as table_name (backend expects table_name)
+        if (blob.video_table) {
+          transformed.table_name = blob.video_table;
+        }
+        return transformed;
+      });
+      
       // Build a comma-separated list of IDs (adjust if your blobs use a different key)
-      const blobs = { blobs: selectedBlobs };
+      const blobs = { blobs: transformedBlobs };
       console.log('Fetching blobs:', blobs);
       const startTime = Date.now();
       
@@ -617,10 +627,10 @@ const Client = ({ node }) => {
                     {blob.id && <div className="blob-id"><strong>ID:</strong> {blob.id}</div>}
                     {blob.file && <div className="blob-file"><strong>File:</strong> {blob.file}</div>}
                     {blob.dbms_name && <div className="blob-dbms"><strong>DBMS:</strong> {blob.dbms_name}</div>}
-                    {blob.table_name && <div className="blob-table"><strong>Table:</strong> {blob.table_name}</div>}
+                    {(blob.video_table || blob.table_name) && <div className="blob-table"><strong>Table:</strong> {blob.video_table || blob.table_name}</div>}
                     {blob.ip && <div className="blob-ip"><strong>IP:</strong> {blob.ip}</div>}
                     {blob.port && <div className="blob-port"><strong>Port:</strong> {blob.port}</div>}
-                    {!blob.id && !blob.file && !blob.dbms_name && !blob.table_name && !blob.ip && !blob.port && (
+                    {!blob.id && !blob.file && !blob.dbms_name && !blob.video_table && !blob.table_name && !blob.ip && !blob.port && (
                       <div className="blob-raw">{JSON.stringify(blob, null, 2)}</div>
                     )}
                   </div>
