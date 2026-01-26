@@ -61,6 +61,10 @@
     "grafana": {
       "enabled": true,
       "description": "Grafana Dashboard Plugin"
+    },
+    "mcpclient": {
+      "enabled": true,
+      "description": "MCP Client Plugin - Integrates Ollama with AnyLog MCP"
     }
   },
   "version": "1.0.0"
