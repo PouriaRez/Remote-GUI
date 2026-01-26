@@ -47,7 +47,7 @@
   },
   "plugins": {
     "reportgenerator": {
-      "enabled": false,
+      "enabled": true,
       "description": "Report Generator Plugin"
     },
     "nodecheck": {
