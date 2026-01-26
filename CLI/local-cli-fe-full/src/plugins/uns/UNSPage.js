@@ -16,13 +16,22 @@ const UNSPage = ({ node }) => {
   const [hoverTimeout, setHoverTimeout] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null); // Selected item for side panel
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false); // Side panel visibility
+  const [rootQuery, setRootQuery] = useState('blockchain get *'); // Configurable root query
+  const [timeRangeValue, setTimeRangeValue] = useState(5); // Time range value (default 5)
+  const [timeRangeUnit, setTimeRangeUnit] = useState('minute'); // Time range unit (default: minute)
+  const [sqlData, setSqlData] = useState(null); // SQL query results
+  const [sqlLoading, setSqlLoading] = useState(false); // SQL query loading state
+  const [sqlError, setSqlError] = useState(null); // SQL query error
+  const [sqlTab, setSqlTab] = useState('timeRange'); // 'timeRange' or 'advanced'
+  const [customSqlQuery, setCustomSqlQuery] = useState(''); // Custom SQL query text
 
-  // Load root items on mount
+  // Load root items on mount or when node changes
   useEffect(() => {
     if (node) {
       loadRootItems();
     }
-  }, [node]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node]); // Only reload when node changes, not when rootQuery changes
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -39,6 +48,11 @@ const UNSPage = ({ node }) => {
       return;
     }
 
+    if (!rootQuery.trim()) {
+      setError('Root query cannot be empty.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -48,7 +62,7 @@ const UNSPage = ({ node }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ conn: node }),
+        body: JSON.stringify({ conn: node, query: rootQuery.trim() }),
       });
 
       if (!response.ok) {
@@ -383,6 +397,127 @@ const UNSPage = ({ node }) => {
     setHoveredItem(null);
   };
 
+  const fetchSqlData = async (dbms, table) => {
+    if (!node || !dbms || !table) return;
+
+    setSqlLoading(true);
+    setSqlError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/uns/query-table`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conn: node,
+          dbms: dbms,
+          table: table,
+          time_value: timeRangeValue,
+          time_unit: timeRangeUnit
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      console.log('UNS: SQL query result:', {
+        success: result.success,
+        dataLength: result.data ? result.data.length : 0,
+        dataType: Array.isArray(result.data) ? 'array' : typeof result.data
+      });
+      
+      if (result.success) {
+        console.log(`UNS: Setting ${result.data ? result.data.length : 0} rows in state`);
+        setSqlData(result.data);
+      } else {
+        setSqlError(result.error || 'Failed to fetch table data');
+      }
+    } catch (err) {
+      console.error('Error fetching SQL data:', err);
+      setSqlError(err.message || 'Failed to fetch table data');
+    } finally {
+      setSqlLoading(false);
+    }
+  };
+
+  const fetchCustomSqlData = async (dbms, sqlQuery) => {
+    if (!node || !dbms || !sqlQuery.trim()) return;
+
+    setSqlLoading(true);
+    setSqlError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/uns/query-custom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conn: node,
+          dbms: dbms,
+          sql_query: sqlQuery.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      console.log('UNS: Custom SQL query result:', {
+        success: result.success,
+        dataLength: result.data ? result.data.length : 0,
+        dataType: Array.isArray(result.data) ? 'array' : typeof result.data
+      });
+      
+      if (result.success) {
+        console.log(`UNS: Setting ${result.data ? result.data.length : 0} rows in state`);
+        setSqlData(result.data);
+      } else {
+        setSqlError(result.error || 'Failed to execute custom SQL query');
+      }
+    } catch (err) {
+      console.error('Error executing custom SQL query:', err);
+      setSqlError(err.message || 'Failed to execute custom SQL query');
+    } finally {
+      setSqlLoading(false);
+    }
+  };
+
+  const toggleSidePanel = (item) => {
+    const itemId = getItemId(item);
+    const isCurrentlySelected = selectedItem && getItemId(selectedItem) === itemId;
+    
+    // If clicking on the already selected item and panel is open, close it
+    if (isCurrentlySelected && isSidePanelOpen) {
+      setIsSidePanelOpen(false);
+      setSelectedItem(null);
+      setSqlData(null);
+      setSqlError(null);
+      setCustomSqlQuery('');
+      setSqlTab('timeRange');
+    } else {
+      // Otherwise, open/update the side panel with this item
+      setSelectedItem(item);
+      setIsSidePanelOpen(true);
+      setSqlData(null);
+      setSqlError(null);
+      setCustomSqlQuery(''); // Clear custom query when opening new item
+      setSqlTab('timeRange'); // Reset to time range tab
+      
+      // Check if item has dbms and table, then fetch SQL data
+      const itemData = getItemData(item);
+      if (itemData && itemData.dbms && itemData.table) {
+        fetchSqlData(itemData.dbms, itemData.table);
+      }
+    }
+  };
+
   const renderItem = (item, layerIndex, itemIndex) => {
     const itemId = getItemId(item);
     const itemName = getItemName(item);
@@ -411,7 +546,8 @@ const UNSPage = ({ node }) => {
 
     const handleItemClick = (e) => {
       // Left click: only expand/collapse if item has children
-      if (mightHaveChildren) {
+      // Don't expand if clicking on the info button
+      if (mightHaveChildren && !e.target.closest('.uns-item-info-btn')) {
         expandItem(item, layerIndex);
       }
     };
@@ -419,18 +555,13 @@ const UNSPage = ({ node }) => {
     const handleItemRightClick = (e) => {
       // Right click: toggle side panel with item details
       e.preventDefault(); // Prevent default browser context menu
-      
-      const isCurrentlySelected = selectedItem && getItemId(selectedItem) === itemId;
-      
-      // If clicking on the already selected item and panel is open, close it
-      if (isCurrentlySelected && isSidePanelOpen) {
-        setIsSidePanelOpen(false);
-        setSelectedItem(null);
-      } else {
-        // Otherwise, open/update the side panel with this item
-        setSelectedItem(item);
-        setIsSidePanelOpen(true);
-      }
+      toggleSidePanel(item);
+    };
+
+    const handleInfoButtonClick = (e) => {
+      // Info button click: toggle side panel with item details
+      e.stopPropagation(); // Prevent triggering the item click
+      toggleSidePanel(item);
     };
 
     const isSelected = selectedItem && getItemId(selectedItem) === itemId;
@@ -449,11 +580,21 @@ const UNSPage = ({ node }) => {
           {icon}
         </div>
         <div className="uns-item-name">{itemName}</div>
-        {mightHaveChildren && (
-          <div className="uns-item-expand">
-            {isExpanded ? '▼' : '▶'}
-          </div>
-        )}
+        <div className="uns-item-actions">
+          <button
+            className="uns-item-info-btn"
+            onClick={handleInfoButtonClick}
+            title="View item details"
+            aria-label="View item details"
+          >
+            ℹ️
+          </button>
+          {mightHaveChildren && (
+            <div className="uns-item-expand">
+              {isExpanded ? '▼' : '▶'}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -521,13 +662,32 @@ const UNSPage = ({ node }) => {
     <div className="uns-container">
       <div className="uns-header">
         <h1>Unified Namespace (UNS)</h1>
-        <button 
-          onClick={loadRootItems} 
-          disabled={loading || !node}
-          className="uns-refresh-btn"
-        >
-          🔄 Refresh
-        </button>
+        <div className="uns-header-controls">
+          <div className="uns-query-input-group">
+            <label htmlFor="root-query" className="uns-query-label">Root Query:</label>
+            <input
+              id="root-query"
+              type="text"
+              value={rootQuery}
+              onChange={(e) => setRootQuery(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !loading && node) {
+                  loadRootItems();
+                }
+              }}
+              placeholder="blockchain get *"
+              className="uns-query-input"
+              disabled={loading}
+            />
+          </div>
+          <button 
+            onClick={loadRootItems} 
+            disabled={loading || !node || !rootQuery.trim()}
+            className="uns-refresh-btn"
+          >
+            🔄 Refresh
+          </button>
+        </div>
       </div>
 
       {!node && (
@@ -584,31 +744,225 @@ const UNSPage = ({ node }) => {
               onClick={() => {
                 setIsSidePanelOpen(false);
                 setSelectedItem(null);
+                setSqlData(null);
+                setSqlError(null);
+                setCustomSqlQuery('');
+                setSqlTab('timeRange');
               }}
             >
               ×
             </button>
           </div>
           <div className="uns-side-panel-content">
-            {selectedItem && (
-              <>
-                <div className="uns-side-panel-info">
-                  <div className="uns-side-panel-info-row">
-                    <strong>Name:</strong> {getItemName(selectedItem)}
+            {selectedItem && (() => {
+              const itemData = getItemData(selectedItem);
+              const hasTable = itemData && itemData.dbms && itemData.table;
+              
+              return (
+                <>
+                  <div className="uns-side-panel-info">
+                    <div className="uns-side-panel-info-row">
+                      <strong>Name:</strong> {getItemName(selectedItem)}
+                    </div>
+                    <div className="uns-side-panel-info-row">
+                      <strong>Type:</strong> {getItemType(selectedItem)}
+                    </div>
+                    <div className="uns-side-panel-info-row">
+                      <strong>ID:</strong> {getItemId(selectedItem)}
+                    </div>
+                    {hasTable && (
+                      <>
+                        <div className="uns-side-panel-info-row">
+                          <strong>DBMS:</strong> {itemData.dbms}
+                        </div>
+                        <div className="uns-side-panel-info-row">
+                          <strong>Table:</strong> {itemData.table}
+                        </div>
+                        <div className="uns-side-panel-time-range">
+                          <label htmlFor="time-range-value">Time Range:</label>
+                          <div className="uns-time-range-controls">
+                            <input
+                              id="time-range-value"
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={timeRangeValue}
+                              onChange={(e) => {
+                                const value = parseFloat(e.target.value) || 5;
+                                setTimeRangeValue(value);
+                              }}
+                              className="uns-time-range-input"
+                            />
+                            <select
+                              id="time-range-unit"
+                              value={timeRangeUnit}
+                              onChange={(e) => {
+                                setTimeRangeUnit(e.target.value);
+                              }}
+                              className="uns-time-range-unit"
+                            >
+                              <option value="minute">Minutes</option>
+                              <option value="hour">Hours</option>
+                              <option value="day">Days</option>
+                              <option value="week">Weeks</option>
+                            </select>
+                            <button
+                              onClick={() => {
+                                if (hasTable) {
+                                  fetchSqlData(itemData.dbms, itemData.table);
+                                }
+                              }}
+                              disabled={sqlLoading}
+                              className="uns-time-range-refresh-btn"
+                            >
+                              {sqlLoading ? 'Loading...' : '🔄 Refresh'}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="uns-side-panel-info-row">
-                    <strong>Type:</strong> {getItemType(selectedItem)}
+
+                  {hasTable && (
+                    <div className="uns-side-panel-sql">
+                      <div className="uns-sql-tabs">
+                        <button
+                          className={`uns-sql-tab ${sqlTab === 'timeRange' ? 'active' : ''}`}
+                          onClick={() => setSqlTab('timeRange')}
+                        >
+                          Time Range Query
+                        </button>
+                        <button
+                          className={`uns-sql-tab ${sqlTab === 'advanced' ? 'active' : ''}`}
+                          onClick={() => setSqlTab('advanced')}
+                        >
+                          Advanced Query
+                        </button>
+                      </div>
+
+                      {sqlTab === 'timeRange' && (
+                        <div className="uns-sql-tab-content">
+                          <div className="uns-sql-header">
+                            <strong>Table Data (Last {timeRangeValue} {timeRangeUnit}{timeRangeValue !== 1 ? 's' : ''}):</strong>
+                            {sqlData && sqlData.length > 0 && (
+                              <span className="uns-sql-row-count">({sqlData.length} row{sqlData.length !== 1 ? 's' : ''})</span>
+                            )}
+                          </div>
+                          {sqlLoading && (
+                            <div className="uns-sql-loading">Loading table data...</div>
+                          )}
+                          {sqlError && (
+                            <div className="uns-sql-error">
+                              <strong>Error:</strong> {sqlError}
+                            </div>
+                          )}
+                          {!sqlLoading && !sqlError && sqlData && (
+                            <div className="uns-sql-table-container">
+                              {sqlData.length === 0 ? (
+                                <div className="uns-sql-empty">No data found for the specified time range.</div>
+                              ) : (
+                                <table className="uns-sql-table">
+                                  <thead>
+                                    <tr>
+                                      {Object.keys(sqlData[0]).map((key) => (
+                                        <th key={key}>{key}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sqlData.map((row, index) => (
+                                      <tr key={index}>
+                                        {Object.values(row).map((value, cellIndex) => (
+                                          <td key={cellIndex}>
+                                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {sqlTab === 'advanced' && (
+                        <div className="uns-sql-tab-content">
+                          <div className="uns-sql-header">
+                            <strong>Custom SQL Query:</strong>
+                            {sqlData && sqlData.length > 0 && (
+                              <span className="uns-sql-row-count">({sqlData.length} row{sqlData.length !== 1 ? 's' : ''})</span>
+                            )}
+                          </div>
+                          <div className="uns-custom-query-container">
+                            <textarea
+                              value={customSqlQuery}
+                              onChange={(e) => setCustomSqlQuery(e.target.value)}
+                              placeholder={`Enter your SQL query here...\nExample: SELECT * FROM ${itemData?.table || 'table_name'} WHERE column = 'value'`}
+                              className="uns-custom-query-input"
+                              rows={6}
+                            />
+                            <button
+                              onClick={() => {
+                                if (itemData?.dbms && customSqlQuery.trim()) {
+                                  fetchCustomSqlData(itemData.dbms, customSqlQuery);
+                                }
+                              }}
+                              disabled={sqlLoading || !itemData?.dbms || !customSqlQuery.trim()}
+                              className="uns-custom-query-execute-btn"
+                            >
+                              {sqlLoading ? 'Executing...' : '▶ Execute Query'}
+                            </button>
+                          </div>
+                          {sqlLoading && (
+                            <div className="uns-sql-loading">Executing query...</div>
+                          )}
+                          {sqlError && (
+                            <div className="uns-sql-error">
+                              <strong>Error:</strong> {sqlError}
+                            </div>
+                          )}
+                          {!sqlLoading && !sqlError && sqlData && (
+                            <div className="uns-sql-table-container">
+                              {sqlData.length === 0 ? (
+                                <div className="uns-sql-empty">No data returned from query.</div>
+                              ) : (
+                                <table className="uns-sql-table">
+                                  <thead>
+                                    <tr>
+                                      {Object.keys(sqlData[0]).map((key) => (
+                                        <th key={key}>{key}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sqlData.map((row, index) => (
+                                      <tr key={index}>
+                                        {Object.values(row).map((value, cellIndex) => (
+                                          <td key={cellIndex}>
+                                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="uns-side-panel-json">
+                    <strong>JSON Data:</strong>
+                    <pre>{JSON.stringify(itemData, null, 2)}</pre>
                   </div>
-                  <div className="uns-side-panel-info-row">
-                    <strong>ID:</strong> {getItemId(selectedItem)}
-                  </div>
-                </div>
-                <div className="uns-side-panel-json">
-                  <strong>JSON Data:</strong>
-                  <pre>{JSON.stringify(getItemData(selectedItem), null, 2)}</pre>
-                </div>
-              </>
-            )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
