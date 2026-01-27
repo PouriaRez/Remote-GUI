@@ -692,11 +692,36 @@ const UNSPage = ({ node }) => {
         console.log(`UNS: Setting ${result.data ? result.data.length : 0} rows in state`);
         setSqlData(result.data);
       } else {
-        setSqlError(result.error || 'Failed to fetch table data');
+        // Check if it's a "no data" error or a real error
+        const errorMsg = result.error || '';
+        const isNoDataError = errorMsg.toLowerCase().includes('failed to load table metadata') ||
+                             errorMsg.toLowerCase().includes('connection broken') ||
+                             errorMsg.toLowerCase().includes('invalidchunklength') ||
+                             errorMsg.toLowerCase().includes('invalid literal') ||
+                             errorMsg.toLowerCase().includes('err_code') ||
+                             !errorMsg; // Empty error usually means no data
+        
+        if (isNoDataError) {
+          setSqlError('There is no table/data at this location');
+        } else {
+          setSqlError(result.error || 'Failed to fetch table data');
+        }
       }
     } catch (err) {
       console.error('Error fetching SQL data:', err);
-      setSqlError(err.message || 'Failed to fetch table data');
+      // Check if it's a "no data" error
+      const errorMsg = err.message || '';
+      const isNoDataError = errorMsg.toLowerCase().includes('failed to load table metadata') ||
+                           errorMsg.toLowerCase().includes('connection broken') ||
+                           errorMsg.toLowerCase().includes('invalidchunklength') ||
+                           errorMsg.toLowerCase().includes('invalid literal') ||
+                           errorMsg.toLowerCase().includes('err_code');
+      
+      if (isNoDataError) {
+        setSqlError('There is no table/data at this location');
+      } else {
+        setSqlError(err.message || 'Failed to fetch table data');
+      }
     } finally {
       setSqlLoading(false);
     }
@@ -737,11 +762,36 @@ const UNSPage = ({ node }) => {
         console.log(`UNS: Setting ${result.data ? result.data.length : 0} rows in state`);
         setSqlData(result.data);
       } else {
-        setSqlError(result.error || 'Failed to execute custom SQL query');
+        // Check if it's a "no data" error or a real error
+        const errorMsg = result.error || '';
+        const isNoDataError = errorMsg.toLowerCase().includes('failed to load table metadata') ||
+                             errorMsg.toLowerCase().includes('connection broken') ||
+                             errorMsg.toLowerCase().includes('invalidchunklength') ||
+                             errorMsg.toLowerCase().includes('invalid literal') ||
+                             errorMsg.toLowerCase().includes('err_code') ||
+                             !errorMsg; // Empty error usually means no data
+        
+        if (isNoDataError) {
+          setSqlError('There is no table/data at this location');
+        } else {
+          setSqlError(result.error || 'Failed to execute custom SQL query');
+        }
       }
     } catch (err) {
       console.error('Error executing custom SQL query:', err);
-      setSqlError(err.message || 'Failed to execute custom SQL query');
+      // Check if it's a "no data" error
+      const errorMsg = err.message || '';
+      const isNoDataError = errorMsg.toLowerCase().includes('failed to load table metadata') ||
+                           errorMsg.toLowerCase().includes('connection broken') ||
+                           errorMsg.toLowerCase().includes('invalidchunklength') ||
+                           errorMsg.toLowerCase().includes('invalid literal') ||
+                           errorMsg.toLowerCase().includes('err_code');
+      
+      if (isNoDataError) {
+        setSqlError('There is no table/data at this location');
+      } else {
+        setSqlError(err.message || 'Failed to execute custom SQL query');
+      }
     } finally {
       setSqlLoading(false);
     }
@@ -1212,8 +1262,14 @@ const UNSPage = ({ node }) => {
                             <div className="uns-sql-loading">Loading table data...</div>
                           )}
                           {sqlError && (
-                            <div className="uns-sql-error">
-                              <strong>Error:</strong> {sqlError}
+                            <div className={sqlError.includes('no table/data') ? "uns-sql-empty" : "uns-sql-error"}>
+                              {sqlError.includes('no table/data') ? (
+                                sqlError
+                              ) : (
+                                <>
+                                  <strong>Error:</strong> {sqlError}
+                                </>
+                              )}
                             </div>
                           )}
                           {!sqlLoading && !sqlError && sqlData && (
@@ -1279,8 +1335,14 @@ const UNSPage = ({ node }) => {
                             <div className="uns-sql-loading">Executing query...</div>
                           )}
                           {sqlError && (
-                            <div className="uns-sql-error">
-                              <strong>Error:</strong> {sqlError}
+                            <div className={sqlError.includes('no table/data') ? "uns-sql-empty" : "uns-sql-error"}>
+                              {sqlError.includes('no table/data') ? (
+                                sqlError
+                              ) : (
+                                <>
+                                  <strong>Error:</strong> {sqlError}
+                                </>
+                              )}
                             </div>
                           )}
                           {!sqlLoading && !sqlError && sqlData && (
