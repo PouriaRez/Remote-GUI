@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 from plugins.utils import make_request
 from parsers import parse_response
+from plugins.utils import get_columns
 
 # Create the API router
 api_router = APIRouter(prefix="/uns", tags=["UNS"])
@@ -31,6 +32,15 @@ class QueryCustomRequest(BaseModel):
     conn: str
     dbms: str
     sql_query: str  # Custom SQL query
+
+class CheckTableRequest(BaseModel):
+    conn: str
+    dbms: str
+    table: str
+
+class CheckChildrenRequest(BaseModel):
+    conn: str
+    item_id: str
 
 # API endpoints
 @api_router.get("/")
@@ -327,5 +337,133 @@ async def query_custom(request: QueryCustomRequest):
             "success": False,
             "error": error_msg,
             "data": None
+        }
+
+@api_router.post("/check-table")
+async def check_table(request: CheckTableRequest):
+    """Check if a table exists and has data by checking for columns"""
+    try:
+        if not request.dbms or not request.table:
+            raise HTTPException(status_code=400, detail="dbms and table are required")
+        
+        # Use the get_columns helper which handles the command and parsing
+        columns = get_columns(request.conn, request.dbms, request.table)
+        
+        # If columns list is not empty, the table exists and has data
+        # Empty list means table doesn't exist or has no data
+        has_data = len(columns) > 0
+        
+        # Double-check: if we got an empty list, definitely no data
+        if not has_data:
+            print(f"UNS: Table {request.dbms}.{request.table} has no columns - treating as no data")
+        
+        return {
+            "success": True,
+            "has_data": has_data,
+            "column_count": len(columns),
+            "error": None
+        }
+    except Exception as e:
+        error_msg = str(e)
+        print(f"UNS: Check table error: {error_msg}")
+        
+        # Check if error indicates table doesn't exist or connection issues
+        # These errors mean the table doesn't exist or can't be accessed
+        error_lower = error_msg.lower()
+        is_table_error = any(indicator in error_lower for indicator in [
+            "failed to load table metadata",
+            "connection broken",
+            "invalidchunklength",
+            "invalid literal",
+            "table",
+            "does not exist",
+            "not found",
+            "err_code"
+        ])
+        
+        # If there's an error (especially connection/table errors), assume table doesn't exist or has no data
+        return {
+            "success": False,
+            "has_data": False,
+            "column_count": 0,
+            "error": error_msg if not is_table_error else None  # Don't expose internal errors to frontend
+        }
+
+@api_router.post("/check-children")
+async def check_children(request: CheckChildrenRequest):
+    """Check if an item has children by attempting to fetch them"""
+    try:
+        if not request.item_id:
+            raise HTTPException(status_code=400, detail="item_id is required")
+        
+        command = f'blockchain get * where [id] = "{request.item_id}" bring.children'
+        print(f"UNS: Checking children for item: {request.item_id}")
+        
+        response = make_request(request.conn, "GET", command)
+        
+        # Check if make_request returned an error response
+        if isinstance(response, dict) and response.get("type") == "error":
+            error_msg = response.get("data", "Unknown error")
+            print(f"UNS: Error checking children for {request.item_id}: {error_msg}")
+            return {
+                "success": False,
+                "has_children": False,
+                "error": None
+            }
+        
+        parsed = parse_response(response)
+        
+        # Check if parse_response returned an error
+        if isinstance(parsed, dict) and parsed.get("type") == "error":
+            error_msg = parsed.get("data", "Unknown error")
+            print(f"UNS: Error parsing children response for {request.item_id}: {error_msg}")
+            return {
+                "success": False,
+                "has_children": False,
+                "error": None
+            }
+        
+        # Extract data from response
+        if isinstance(parsed, dict) and "data" in parsed:
+            data = parsed["data"]
+        elif isinstance(parsed, list):
+            data = parsed
+        else:
+            data = parsed
+        
+        # Ensure data is a list
+        if not isinstance(data, list):
+            data = [data] if data else []
+        
+        # Check if data contains error indicators
+        if isinstance(data, list) and len(data) > 0:
+            first_item = data[0]
+            if isinstance(first_item, dict):
+                if "err_code" in first_item or "err_text" in first_item or "error" in first_item:
+                    print(f"UNS: Error indicators found in children response for {request.item_id}")
+                    return {
+                        "success": False,
+                        "has_children": False,
+                        "error": None
+                    }
+        
+        # If we have data and it's a non-empty list, item has children
+        has_children = isinstance(data, list) and len(data) > 0
+        
+        return {
+            "success": True,
+            "has_children": has_children,
+            "child_count": len(data) if isinstance(data, list) else 0,
+            "error": None
+        }
+    except Exception as e:
+        error_msg = str(e)
+        print(f"UNS: Check children error for {request.item_id}: {error_msg}")
+        # On error, assume no children
+        return {
+            "success": False,
+            "has_children": False,
+            "child_count": 0,
+            "error": error_msg
         }
 

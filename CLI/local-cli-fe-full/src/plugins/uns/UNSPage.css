@@ -458,6 +458,43 @@
   border-color: #007bff;
 }
 
+/* Data indicator styles */
+/* Only apply blue background when item definitively has data */
+.uns-item.has-data {
+  background-color: #f0f9ff;
+}
+
+.uns-item.has-data:hover {
+  background-color: #e0f2fe;
+}
+
+/* Don't apply any special styling for no-data - just leave it normal */
+/* .uns-item.no-data removed - we don't want to highlight items without data */
+
+.uns-item.checking-data {
+  position: relative;
+}
+
+.uns-item-data-indicator {
+  margin-left: 6px;
+  font-size: 12px;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.uns-item-data-indicator.checking {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* Scrollbar styling for side panel */
 .uns-side-panel-content::-webkit-scrollbar {
   width: 8px;
