@@ -61,6 +61,10 @@
     "grafana": {
       "enabled": true,
       "description": "Grafana Dashboard Plugin"
+    },
+    "kibana": {
+      "enabled": true,
+      "description": "Kibana Dashboard Plugin"
     }
   },
   "version": "1.0.0"
