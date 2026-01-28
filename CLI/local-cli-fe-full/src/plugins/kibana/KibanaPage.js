@@ -5,6 +5,7 @@ import { getKibanaUrl } from './kibana_api';
 export const pluginMetadata = {
   name: 'Kibana',
   icon: null,
+  // 📊 => Use icon?
 };
 
 const KibanaPage = () => {
@@ -66,7 +67,7 @@ const KibanaPage = () => {
         {loading && <div>Loading...</div>}
         {url && (
           <iframe
-            style={{ border: 'none' }}
+            style={{ border: 'none', borderRadius: '10px' }}
             src={url}
             title="Kibana Dashboard"
             width="100%"
