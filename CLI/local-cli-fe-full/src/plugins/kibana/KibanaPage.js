@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { kibanaInfo } from './kibana_api';
+import { useEffect, useState } from 'react';
+import { getKibanaUrl } from './kibana_api';
 
 // Plugin metadata - used by the plugin loader
 export const pluginMetadata = {
@@ -9,31 +9,70 @@ export const pluginMetadata = {
 
 const KibanaPage = () => {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [url, setUrl] = useState(null);
 
   const handleInfoDisplay = async () => {
     setLoading(true);
-    setResult(null);
+    setUrl(null);
 
     try {
-      const data = await kibanaInfo();
-      console.log(data);
-      setResult(data);
+      const data = await getKibanaUrl();
+      setUrl(data.url);
     } catch (error) {
       console.error('Kibana error:', error);
-      setResult({ error: error.message || 'Failed to display information' });
+      setUrl({ error: error.message || 'Failed to display information' });
     } finally {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    handleInfoDisplay();
+  }, []);
 
   return (
     <>
-      <div>
-        KibanaPage
-        <button onClick={handleInfoDisplay}>Button</button>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100%',
+          width: '100%',
+          gap: 15,
+        }}
+      >
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <p
+            style={{
+              color: '#333',
+              fontSize: '24px',
+              fontWeight: '600',
+              borderBottom: '2px solid #007bff',
+              paddingBottom: '10px',
+              display: 'inline-block',
+            }}
+          >
+            Kibana Dashboard
+          </p>
+        </div>
         {loading && <div>Loading...</div>}
-        {result && <div>{result.name}</div>}
+        {url && (
+          <iframe
+            style={{ border: 'none' }}
+            src={url}
+            title="Kibana Dashboard"
+            width="100%"
+            height="100%"
+          />
+        )}
       </div>
     </>
   );
