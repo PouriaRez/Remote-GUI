@@ -69,6 +69,10 @@
     "kibana": {
       "enabled": true,
       "description": "Kibana Dashboard Plugin"
+    },
+    "cli": {
+      "enabled": true,
+      "description": "CLI Plugin"
     }
   },
   "version": "1.0.0"
