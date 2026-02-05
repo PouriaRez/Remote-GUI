@@ -39,16 +39,29 @@ const TerminalView = ({ host, user, password, action }) => {
         term.scrollToBottom();
       };
 
+      /*
+      
+      */
       const ws = new WebSocket('ws://localhost:8000/cli/ws');
       wsRef.current = ws;
 
+      /*
+      method: password | key-string | key-file
+      data: 'password' | 'private key string' | '\path\to\private_key' 
+      */
+      // remove this after frontend is done.... created for testing.
+      const conn_method = {
+        method: 'key-file',
+        data: `\\\\wsl.localhost\\Ubuntu-24.04\\home\\pouria\\.ssh\\id_ed25519`,
+      };
       ws.onopen = () => {
+        console.log('Sending: ', host, conn_method);
         ws.send(
           JSON.stringify({
             action: action,
             host: host,
             user: user,
-            password: password,
+            conn_method: conn_method,
             cols: term.cols,
             rows: term.rows,
           }),

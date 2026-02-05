@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 import os
+import io
 import asyncio
 import json
 import paramiko
@@ -9,6 +10,7 @@ import paramiko
 api_router = APIRouter(prefix="/cli", tags=["MCP Client"])
 
 ALLOWED_METHODS = ["direct_ssh", "docker_attach", "docker_exec"]
+ALLOWED_CONNECTION_METHODS = ["password", "key-string", "key-file"]
 
 sessions = {}
 
@@ -22,16 +24,69 @@ async def listen_to_ssh(ws: WebSocket, channel: paramiko.Channel):
     except Exception:
         pass
 
-def open_ssh_chan(host, user, password):
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-        hostname=host,
-        username=user,
-        port=22,
-        password=password,
-        timeout=10,
-    )
+def connect_client(host, user, password= None, pkey = None):
+    try:
+        # If no password provided aka using key... Client will connect accordingly
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            hostname=host,
+            username=user,
+            port=22,
+            password=password,
+            pkey=pkey,
+            timeout=10,
+        )
+    
+        return client
+
+    except Exception as e:
+        print("Error creating Paramiko Client:", e)
+        return None
+    
+
+def open_ssh_chan(host, user, conn_method):
+    pref_method = conn_method.get('method')
+    method_data = conn_method.get('data')
+    print('Method: ', pref_method)
+
+    if pref_method not in ALLOWED_CONNECTION_METHODS:
+        print('Connection Method Error: Not key or password.\n')
+        return None
+    
+    match pref_method:
+        case 'password':
+            print('Connecting via password...')
+            client = connect_client(host, user, password=method_data)
+
+        case 'key-string':
+            print('Connecting via Key [String]...')
+
+            key_stream = io.StringIO(method_data)
+            print(key_stream)
+
+            # Returns paramiko key object to be used for ssh auth.
+            try:
+                key = paramiko.Ed25519Key.from_private_key(key_stream)
+            except paramiko.SSHException:
+                # If key is RSA do this
+                key_stream.seek(0)
+                key = paramiko.RSAKey.from_private_key(key_stream)
+
+            client = connect_client(host, user, pkey=key)
+
+        case 'key-file':
+            print('Connecting via Key [File]...')
+            print(method_data)
+
+            try:
+                key = paramiko.Ed25519Key.from_private_key_file(method_data)
+            except paramiko.SSHException:
+                # If key is RSA do this
+                key = paramiko.RSAKey.from_private_key_file(method_data)
+
+            client = connect_client(host, user, pkey=key)
+
 
     return client
 
@@ -45,16 +100,23 @@ async def ws_handler(ws: WebSocket):
         while True:
             message = await ws.receive_json()
             action = message.get("action")
+            conn_method_info = message.get('conn_method')
+
+
 
             if action in ALLOWED_METHODS:
                 cols = message.get("cols", 80)
                 rows = message.get("rows", 24)
 
+
+                
+
                 client = open_ssh_chan(
                     message["host"],
                     message["user"],
-                    message["password"],
+                    conn_method_info,
                 )
+
 
                 if action == "direct_ssh":
                     channel = client.invoke_shell(term="xterm", width=cols, height=rows)
