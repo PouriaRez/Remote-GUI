@@ -2,6 +2,7 @@ import DataTable from '../../components/DataTable';
 import { useEffect, useState } from 'react';
 import { sendCommand } from '../../services/api';
 import '../../styles/CLIPage.css';
+import TerminalView from './TerminalView';
 // Plugin metadata - used by the plugin loader
 export const pluginMetadata = {
   name: 'CLI',
@@ -11,12 +12,33 @@ export const pluginMetadata = {
 const CliPage = () => {
   // const command = 'test network'; DONT USE THIS YET... TAKES TOO LONG CRASHES THINGS BAD THINGS HAPPEN
   // const command = 'get status';
-  const command = 'test network';
+  const command = 'test network with 23.239.12.151:32349';
 
+  const [startSession, setStartSession] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [responseData, setResponseData] = useState(false);
   const [resultType, setResultType] = useState(false);
+  const [selectedAction, setSelectedAction] = useState('direct_ssh');
+
+  const handleActionChange = (e) => {
+    setStartSession(false);
+    setSelectedAction(e.target.value);
+  };
+
+  const [loginForm, setLoginForm] = useState({
+    host: '',
+    user: '',
+    password: '',
+  });
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setLoginForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     setLoading(true);
@@ -59,7 +81,7 @@ const CliPage = () => {
     }
   };
   useEffect(() => {
-    handleSubmit();
+    // handleSubmit();
   }, []);
 
   return (
@@ -75,6 +97,60 @@ const CliPage = () => {
           <DataTable data={responseData} />
         </>
       )}
+      <div style={{ height: '100%' }}>
+        <form>
+          <input
+            name="host"
+            value={loginForm.host}
+            onChange={handleFormChange}
+            placeholder="Host"
+          />
+
+          <input
+            name="user"
+            value={loginForm.user}
+            onChange={handleFormChange}
+            placeholder="User"
+          />
+
+          <input
+            type="password"
+            name="password"
+            value={loginForm.password}
+            onChange={handleFormChange}
+            placeholder="Password"
+          />
+        </form>
+
+        <select
+          id="connection_action"
+          value={selectedAction}
+          onChange={handleActionChange}
+        >
+          <option value="">-- Select --</option>
+          <option value="direct_ssh">Direct SSH</option>
+          <option value="docker_exec">Docker(Exec)</option>
+          <option value="docker_attach">Docker(Attach)</option>
+        </select>
+
+        <button
+          onClick={() => setStartSession(!startSession)}
+          style={{ background: `${startSession ? 'red' : 'blue'}` }}
+        >
+          <span>{!startSession ? 'Connect' : 'Disconnect'}</span>
+        </button>
+
+        {startSession && (
+          <div style={{ height: '100%' }}>
+            <TerminalView
+              host={loginForm.host}
+              user={loginForm.user}
+              password={loginForm.password}
+              action={selectedAction}
+            />
+          </div>
+        )}
+      </div>
     </>
   );
 };
