@@ -138,7 +138,7 @@ const ConnectionSelectorView = () => {
           return;
         }
 
-        setKeyFile(file);
+        setKeyFile({name: file.name, contents: text});
         console.log(`Stored keyfile`);
       } catch (err) {
         console.error("Failed to read file", err);
