@@ -10,7 +10,9 @@ import paramiko
 api_router = APIRouter(prefix="/cli", tags=["MCP Client"])
 
 ALLOWED_METHODS = ["direct_ssh", "docker_attach", "docker_exec"]
-ALLOWED_CONNECTION_METHODS = ["password", "key-string", "key-file"]
+# Possible Allowed Conn method: 
+ALLOWED_CONNECTION_METHODS = ["password","key-string","keyfile"]
+
 
 sessions = {}
 
@@ -37,9 +39,13 @@ def connect_client(host, user, password= None, pkey = None):
             pkey=pkey,
             timeout=10,
         )
-    
+        
+
         return client
 
+    except paramiko.AuthenticationException:
+        print("Paramiko Client Error : Unable to Authorize Client.")
+        return None
     except Exception as e:
         print("Error creating Paramiko Client:", e)
         return None
@@ -59,11 +65,12 @@ def open_ssh_chan(host, user, conn_method):
             print('Connecting via password...')
             client = connect_client(host, user, password=method_data)
 
+
         case 'key-string':
             print('Connecting via Key [String]...')
 
             key_stream = io.StringIO(method_data)
-            print(key_stream)
+
 
             # Returns paramiko key object to be used for ssh auth.
             try:
@@ -75,9 +82,8 @@ def open_ssh_chan(host, user, conn_method):
 
             client = connect_client(host, user, pkey=key)
 
-        case 'key-file':
+        case 'keyfile':
             print('Connecting via Key [File]...')
-            print(method_data)
 
             try:
                 key = paramiko.Ed25519Key.from_private_key_file(method_data)
@@ -102,6 +108,7 @@ async def ws_handler(ws: WebSocket):
             action = message.get("action")
             conn_method_info = message.get('conn_method')
 
+
             if action in ALLOWED_METHODS:
                 cols = message.get("cols", 80)
                 rows = message.get("rows", 24)
@@ -111,6 +118,12 @@ async def ws_handler(ws: WebSocket):
                     message["user"],
                     conn_method_info,
                 )
+
+                
+                if not client:
+                    print('Unauthorized User.')
+                    await ws.close(code=1008, reason='Unauthorized User')
+                    return None
 
                 if action == "direct_ssh":
                     channel = client.invoke_shell(term="xterm", width=cols, height=rows)
