@@ -102,21 +102,15 @@ async def ws_handler(ws: WebSocket):
             action = message.get("action")
             conn_method_info = message.get('conn_method')
 
-
-
             if action in ALLOWED_METHODS:
                 cols = message.get("cols", 80)
                 rows = message.get("rows", 24)
-
-
                 
-
                 client = open_ssh_chan(
                     message["host"],
                     message["user"],
                     conn_method_info,
                 )
-
 
                 if action == "direct_ssh":
                     channel = client.invoke_shell(term="xterm", width=cols, height=rows)
@@ -151,7 +145,11 @@ async def ws_handler(ws: WebSocket):
     except WebSocketDisconnect:
         print('WS Disconnect\n')
     except Exception as e:
-        await ws.send_text(f"\r\nSSH ERROR: {str(e)}\r\n")
+        if str(e).lower() == "socket is closed":
+            await ws.send_text("Internal connection to remote host broken")
+        else:
+            await ws.send_text(f"\r\nSSH ERROR: {str(e)}\r\n")
+        await ws.close()
     finally:
         session = sessions.pop(ws, None)
         if session:
