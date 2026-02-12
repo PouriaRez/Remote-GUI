@@ -2,20 +2,24 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
-import cliState from './state/state';
+import { cliState } from './state/state';
 
-const TerminalView = ({ host, user, credential, action, authType }) => {
+const TerminalView = ({ id, host, user, credential, action, authType }) => {
   const terminalRef = useRef(null);
   const termRef = useRef(null);
   const wsRef = useRef(null);
   const fitRef = useRef(null);
 
-  const { isConnected, setIsConnected, removeActiveConnection } = cliState();
+  const { setIsConnected, removeActiveConnection } = cliState();
+
+  const isConnected = cliState(
+    (state) => state.activeConnection[id]?.isConnected ?? false,
+  );
 
   useEffect(() => {
     const wsStatusCheck = setInterval(() => {
       const isOpen = wsRef.current?.readyState === WebSocket.OPEN;
-      setIsConnected(isOpen);
+      setIsConnected(id, isOpen);
     }, 1000);
 
     return () => clearInterval(wsStatusCheck);
@@ -27,8 +31,8 @@ const TerminalView = ({ host, user, credential, action, authType }) => {
     if (!isConnected) {
       const timer = setTimeout(() => {
         console.log('Not connected. return to main.');
-        alert('Could not connect.\nCheck Password or SSH Key.');
-        removeActiveConnection();
+        alert(`Could not connect to ${id}.\nCheck Password or SSH Key.`);
+        removeActiveConnection(id);
       }, 1500);
 
       return () => clearTimeout(timer);

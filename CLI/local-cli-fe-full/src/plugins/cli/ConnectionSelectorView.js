@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FaComputer, FaStar, FaRegStar, FaDocker } from 'react-icons/fa6';
 import { fetchAllNodes, normalizeNodes } from './utils/fetchNodes';
-import cliState from './state/state';
+import { cliState } from './state/state';
 import { IoCloseCircleOutline } from 'react-icons/io5';
 import { CiTrash } from 'react-icons/ci';
 import {
@@ -13,7 +13,7 @@ import { TbBrandPowershell } from 'react-icons/tb';
 
 const ConnectionSelectorView = () => {
   const [connections, setConnections] = useState([]);
-  const { setActiveConnection } = cliState();
+  const { setActiveConnection, activeConnection } = cliState();
 
   const [newConnection, setNewConnection] = useState({
     hostname: '',
@@ -90,6 +90,9 @@ const ConnectionSelectorView = () => {
   };
 
   const handleAuthSubmit = () => {
+    // TODO HERE:
+    // if uuid aka ip already in active connections, return.
+
     console.log(`Submitting with action: ${selectedAction}`);
     if (authMethod === 'password' && !authPassword) {
       alert('Please enter a password');
@@ -113,18 +116,31 @@ const ConnectionSelectorView = () => {
       });
     }
 
-    setActiveConnection({
+    const uuid = `${selectedConnection.ip}-${Date.now()}`;
+    setActiveConnection(uuid, {
       ...selectedConnection,
       user: 'root',
       credential: authMethod === 'keyfile' ? keyFile.contents : authPassword,
       action: selectedAction ?? 'direct_ssh',
       authType: authMethod,
+      isConnected: false,
     });
-    console.log('SelectedConnection: ', selectedConnection);
-    console.log();
+
+    // OLD CLI State
+    // setActiveConnection({
+    //   ...selectedConnection,
+    //   user: 'root',
+    //   credential: authMethod === 'keyfile' ? keyFile.contents : authPassword,
+    //   action: selectedAction ?? 'direct_ssh',
+    //   authType: authMethod,
+    // });
 
     setShowAuthModal(false);
   };
+
+  useEffect(() => {
+    console.log('AC changed:', activeConnection);
+  }, [activeConnection]);
 
   const handleFileUpload = async (file) => {
     if (!file) return;

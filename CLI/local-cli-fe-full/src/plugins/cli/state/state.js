@@ -1,16 +1,6 @@
 import { create } from 'zustand';
 
-// Transform these states to objs w id's
-
-const cliState = create((set) => ({
-  activeConnection: null,
-  setActiveConnection: (conn) => set({ activeConnection: conn }),
-  removeActiveConnection: () => set({ activeConnection: null }),
-  isConnected: false,
-  setIsConnected: (state) => set({ isConnected: state }),
-}));
-
-export const cliStateRefactor = create((set) => ({
+export const cliState = create((set) => ({
   activeConnection: {},
   setActiveConnection: (id, conn) =>
     set((state) => ({
@@ -26,10 +16,9 @@ export const cliStateRefactor = create((set) => ({
       delete updatedConnections[id];
       return { activeConnection: updatedConnections };
     }),
-  setIsConnectedRe: (id, connState) =>
+  setIsConnected: (id, connState) =>
     set((state) => {
       const connection = state.activeConnection[id];
-      // Connection existence check
       if (!connection) return state;
 
       return {
@@ -40,5 +29,3 @@ export const cliStateRefactor = create((set) => ({
       };
     }),
 }));
-
-export default cliState;

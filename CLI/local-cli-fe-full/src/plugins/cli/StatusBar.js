@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import cliState from "./state/state";
-import { FaWindowClose } from "react-icons/fa";
-import { FaCircle } from "react-icons/fa6";
+import React, { useEffect, useState } from 'react';
+import { cliState } from './state/state';
+import { FaWindowClose } from 'react-icons/fa';
+import { FaCircle } from 'react-icons/fa6';
 
 export const TimeCounter = ({ customStart, enabled }) => {
   const [seconds, setSeconds] = useState(customStart || 0);
@@ -27,13 +27,13 @@ export const TimeCounter = ({ customStart, enabled }) => {
     const mins = Math.floor((totalSeconds % 3600) / 60);
     const secs = totalSeconds % 60;
 
-    return [hrs, mins, secs].map((n) => String(n).padStart(2, "0")).join(":");
+    return [hrs, mins, secs].map((n) => String(n).padStart(2, '0')).join(':');
   };
 
   return (
     <div
       style={{
-        fontFamily: "monospace",
+        fontFamily: 'monospace',
         fontSize: 12,
         letterSpacing: 1,
       }}
@@ -43,30 +43,34 @@ export const TimeCounter = ({ customStart, enabled }) => {
   );
 };
 
-const StatusBar = ({ conn }) => {
-  const { activeConnection, removeActiveConnection, isConnected } = cliState();
+const StatusBar = ({ id, conn }) => {
+  const { removeActiveConnection } = cliState();
+  const isConnected = cliState(
+    (state) => state.activeConnection[id]?.isConnected ?? false,
+  );
+
   return (
     <div
       style={{
-        width: "100%",
-        display: "flex",
-        flexDirection: "row",
-        alignContent: "center",
-        alignItems: "center",
-        justifyContent: "space-between",
-        background: "#FFFFFF",
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'row',
+        alignContent: 'center',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: '#FFFFFF',
         borderTopLeftRadius: 8,
         borderTopRightRadius: 8,
-        boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
+        boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
       }}
     >
       <div
         style={{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "center",
-          alignContent: "center",
-          alignItems: "center",
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignContent: 'center',
+          alignItems: 'center',
         }}
       >
         {/* <FaWindowClose
@@ -80,38 +84,43 @@ const StatusBar = ({ conn }) => {
           }}
           onClick={() => removeActiveConnection()}
         /> */}
-        <span style={{
-          color: "red",
-          fontWeight: "medium",
-          fontSize: 14,
-          padding: 4,
-          cursor: 'pointer'
-        }} onClick={() => removeActiveConnection()}>Exit</span>
+        <span
+          style={{
+            color: 'red',
+            fontWeight: 'medium',
+            fontSize: 14,
+            padding: 4,
+            cursor: 'pointer',
+          }}
+          onClick={() => removeActiveConnection(id)}
+        >
+          Exit
+        </span>
       </div>
       <div
         style={{
-          display: "flex",
-          flexDirection: "row",
-          justifyContent: "center",
-          alignContent: "center",
-          alignItems: "center",
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignContent: 'center',
+          alignItems: 'center',
           gap: 4,
         }}
       >
         <FaCircle
           size={10}
-          color={isConnected ? "green" : "red"}
-          style={{ verticalAlign: "middle" }}
+          color={isConnected ? 'green' : 'red'}
+          style={{ verticalAlign: 'middle' }}
         />
         <span
           style={{
             margin: 0,
-            fontFamily: "monospace",
-            lineHeight: "1",
+            fontFamily: 'monospace',
+            lineHeight: '1',
             fontSize: 14,
           }}
         >
-          {activeConnection?.hostname ?? "Host"}({activeConnection?.ip ?? "IP"})
+          {conn.hostname ?? 'Host'}({conn.ip ?? 'IP'})
         </span>
       </div>
       <TimeCounter enabled={isConnected} />
