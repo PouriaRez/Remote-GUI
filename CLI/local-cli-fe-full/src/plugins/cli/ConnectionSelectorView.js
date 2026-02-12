@@ -1,34 +1,34 @@
-import { useEffect, useState } from "react";
-import { FaComputer, FaStar, FaRegStar, FaDocker } from "react-icons/fa6";
-import { fetchAllNodes, normalizeNodes } from "./utils/fetchNodes";
-import cliState from "./state/state";
-import { IoCloseCircleOutline } from "react-icons/io5";
-import { CiTrash } from "react-icons/ci";
+import { useEffect, useState } from 'react';
+import { FaComputer, FaStar, FaRegStar, FaDocker } from 'react-icons/fa6';
+import { fetchAllNodes, normalizeNodes } from './utils/fetchNodes';
+import cliState from './state/state';
+import { IoCloseCircleOutline } from 'react-icons/io5';
+import { CiTrash } from 'react-icons/ci';
 import {
   clearStoredCredentials,
   retrieveStoredCredential,
   storeCredentials,
-} from "./utils/cred";
-import { TbBrandPowershell } from "react-icons/tb";
+} from './utils/cred';
+import { TbBrandPowershell } from 'react-icons/tb';
 
 const ConnectionSelectorView = () => {
   const [connections, setConnections] = useState([]);
   const { setActiveConnection } = cliState();
 
   const [newConnection, setNewConnection] = useState({
-    hostname: "",
-    ip: "",
-    user: "",
-    credential: "",
-    status: "active",
+    hostname: '',
+    ip: '',
+    user: '',
+    credential: '',
+    status: 'active',
     starred: false,
   });
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [selectedAction, setSelectedAction] = useState(null);
-  const [authMethod, setAuthMethod] = useState("password"); // "password" or "keyfile"
-  const [authPassword, setAuthPassword] = useState("");
+  const [authMethod, setAuthMethod] = useState('password'); // "password" or "keyfile"
+  const [authPassword, setAuthPassword] = useState('');
   const [keyFile, setKeyFile] = useState(null);
 
   const addConnection = () => {
@@ -38,7 +38,7 @@ const ConnectionSelectorView = () => {
       !newConnection.user ||
       !newConnection.credential
     ) {
-      alert("Please fill in all fields");
+      alert('Please fill in all fields');
       return;
     }
 
@@ -48,11 +48,11 @@ const ConnectionSelectorView = () => {
     ]);
 
     setNewConnection({
-      hostname: "",
-      ip: "",
-      user: "",
-      credential: "",
-      status: "active",
+      hostname: '',
+      ip: '',
+      user: '',
+      credential: '',
+      status: 'active',
       starred: false,
     });
   };
@@ -72,12 +72,12 @@ const ConnectionSelectorView = () => {
   const handleConnectClick = (conn, conn_action) => {
     setSelectedConnection(conn);
     setSelectedAction(conn_action);
-    setAuthPassword("");
+    setAuthPassword('');
     setKeyFile(null);
-    setAuthMethod("password");
-    setAuthPassword(retrieveStoredCredential(conn.hostname, "password"));
+    setAuthMethod('password');
+    setAuthPassword(retrieveStoredCredential(conn.hostname, 'password'));
 
-    const storedKey = retrieveStoredCredential(conn.hostname, "keyfile");
+    const storedKey = retrieveStoredCredential(conn.hostname, 'keyfile');
     console.log(
       storedKey
         ? `Retrieved locally stored key for ${conn.hostname}`
@@ -90,24 +90,24 @@ const ConnectionSelectorView = () => {
   };
 
   const handleAuthSubmit = () => {
-    console.log(`Submitting with action: ${selectedAction}`)
-    if (authMethod === "password" && !authPassword) {
-      alert("Please enter a password");
+    console.log(`Submitting with action: ${selectedAction}`);
+    if (authMethod === 'password' && !authPassword) {
+      alert('Please enter a password');
       return;
     }
-    if (authMethod === "keyfile" && !keyFile) {
-      alert("Please upload a key file");
+    if (authMethod === 'keyfile' && !keyFile) {
+      alert('Please upload a key file');
       return;
     }
 
-    if (authMethod === "keyfile") {
+    if (authMethod === 'keyfile') {
       storeCredentials(selectedConnection.hostname, {
         keyfile: {
           name: keyFile.name,
           contents: keyFile.contents,
         },
       });
-    } else if (authMethod === "password") {
+    } else if (authMethod === 'password') {
       storeCredentials(selectedConnection.hostname, {
         password: authPassword,
       });
@@ -115,11 +115,13 @@ const ConnectionSelectorView = () => {
 
     setActiveConnection({
       ...selectedConnection,
-      user: "root",
-      credential: authMethod === "keyfile" ? keyFile.contents : authPassword,
-      action: selectedAction ?? "direct_ssh",
+      user: 'root',
+      credential: authMethod === 'keyfile' ? keyFile.contents : authPassword,
+      action: selectedAction ?? 'direct_ssh',
       authType: authMethod,
     });
+    console.log('SelectedConnection: ', selectedConnection);
+    console.log();
 
     setShowAuthModal(false);
   };
@@ -131,17 +133,17 @@ const ConnectionSelectorView = () => {
       try {
         const text = await file.text();
         if (
-          !text.includes("BEGIN OPENSSH PRIVATE KEY") &&
-          !text.includes("BEGIN RSA PRIVATE KEY")
+          !text.includes('BEGIN OPENSSH PRIVATE KEY') &&
+          !text.includes('BEGIN RSA PRIVATE KEY')
         ) {
-          alert("Not a valid SSH private key");
+          alert('Not a valid SSH private key');
           return;
         }
 
-        setKeyFile({name: file.name, contents: text});
+        setKeyFile({ name: file.name, contents: text });
         console.log(`Stored keyfile`);
       } catch (err) {
-        console.error("Failed to read file", err);
+        console.error('Failed to read file', err);
       }
     }
   };
@@ -175,36 +177,36 @@ const ConnectionSelectorView = () => {
   return (
     <div
       style={{
-        width: "100%",
-        minHeight: "100vh",
-        padding: "32px",
-        boxSizing: "border-box",
-        overflow: "hidden",
-        fontFamily: "Arial, sans-serif",
+        width: '100%',
+        minHeight: '100vh',
+        padding: '32px',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        fontFamily: 'Arial, sans-serif',
       }}
     >
-      <div style={{ maxWidth: "100%", margin: "0 auto" }}>
+      <div style={{ maxWidth: '100%', margin: '0 auto' }}>
         {/* Header */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "32px",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '32px',
           }}
         >
           <div>
             <h1
               style={{
                 margin: 0,
-                color: "#1a365d",
-                fontSize: "32px",
-                fontWeight: "600",
+                color: '#1a365d',
+                fontSize: '32px',
+                fontWeight: '600',
               }}
             >
               Remote Console
             </h1>
-            <p style={{ color: "#64748b", marginTop: "8px", fontSize: "14px" }}>
+            <p style={{ color: '#64748b', marginTop: '8px', fontSize: '14px' }}>
               SSH and Manage your AnyLog Nodes
             </p>
           </div>
@@ -212,18 +214,18 @@ const ConnectionSelectorView = () => {
           {/* Add Connection Button */}
           <button
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              backgroundColor: "#000",
-              color: "white",
-              padding: "12px 24px",
-              border: "none",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "16px",
-              fontWeight: "500",
-              transition: "background-color 0.2s",
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: '#000',
+              color: 'white',
+              padding: '12px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '500',
+              transition: 'background-color 0.2s',
             }}
             onClick={addConnection}
           >
@@ -234,14 +236,14 @@ const ConnectionSelectorView = () => {
         {/* Connection Form */}
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            marginBottom: "24px",
-            backgroundColor: "white",
-            padding: "16px",
-            borderRadius: "8px",
-            border: "1px solid #e2e8f0",
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            marginBottom: '24px',
+            backgroundColor: 'white',
+            padding: '16px',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0',
           }}
         >
           <input
@@ -252,10 +254,10 @@ const ConnectionSelectorView = () => {
               setNewConnection({ ...newConnection, hostname: e.target.value })
             }
             style={{
-              padding: "8px",
-              borderRadius: "4px",
-              border: "1px solid #cbd5e1",
-              fontSize: "14px",
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #cbd5e1',
+              fontSize: '14px',
             }}
           />
           <input
@@ -266,10 +268,10 @@ const ConnectionSelectorView = () => {
               setNewConnection({ ...newConnection, ip: e.target.value })
             }
             style={{
-              padding: "8px",
-              borderRadius: "4px",
-              border: "1px solid #cbd5e1",
-              fontSize: "14px",
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #cbd5e1',
+              fontSize: '14px',
             }}
           />
           <input
@@ -280,10 +282,10 @@ const ConnectionSelectorView = () => {
               setNewConnection({ ...newConnection, user: e.target.value })
             }
             style={{
-              padding: "8px",
-              borderRadius: "4px",
-              border: "1px solid #cbd5e1",
-              fontSize: "14px",
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #cbd5e1',
+              fontSize: '14px',
             }}
           />
           <input
@@ -294,10 +296,10 @@ const ConnectionSelectorView = () => {
               setNewConnection({ ...newConnection, password: e.target.value })
             }
             style={{
-              padding: "8px",
-              borderRadius: "4px",
-              border: "1px solid #cbd5e1",
-              fontSize: "14px",
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #cbd5e1',
+              fontSize: '14px',
             }}
           />
         </div>
@@ -305,65 +307,65 @@ const ConnectionSelectorView = () => {
         {/* Connections List */}
         <div
           style={{
-            backgroundColor: "white",
-            borderRadius: "12px",
-            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-            padding: "32px",
-            border: "1px solid #e2e8f0",
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+            padding: '32px',
+            border: '1px solid #e2e8f0',
           }}
         >
           {connections.length === 0 ? (
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "64px 0",
-                textAlign: "center",
-                color: "#64748b",
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '64px 0',
+                textAlign: 'center',
+                color: '#64748b',
               }}
             >
               <div
                 style={{
-                  width: "64px",
-                  height: "64px",
-                  backgroundColor: "#dbeafe",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginBottom: "16px",
-                  fontSize: "32px",
+                  width: '64px',
+                  height: '64px',
+                  backgroundColor: '#dbeafe',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '16px',
+                  fontSize: '32px',
                 }}
               >
                 <FaComputer />
               </div>
-              <p style={{ fontSize: "16px" }}>No added connections yet</p>
+              <p style={{ fontSize: '16px' }}>No added connections yet</p>
             </div>
           ) : (
             <div
-              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
             >
               {sortedConnections.map((conn) => (
                 <div
                   key={conn.id}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "16px",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                    backgroundColor: conn.starred ? "#fffbeb" : "white",
-                    transition: "background-color 0.2s",
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    backgroundColor: conn.starred ? '#fffbeb' : 'white',
+                    transition: 'background-color 0.2s',
                   }}
                 >
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "16px",
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
                     }}
                   >
                     {/* Star Button */}
@@ -388,36 +390,36 @@ const ConnectionSelectorView = () => {
                       <h3
                         style={{
                           margin: 0,
-                          color: "#1a365d",
-                          fontSize: "16px",
-                          fontWeight: "500",
+                          color: '#1a365d',
+                          fontSize: '16px',
+                          fontWeight: '500',
                         }}
                       >
                         {conn.hostname}
                       </h3>
                       <p
                         style={{
-                          color: "#64748b",
-                          fontSize: "14px",
-                          margin: "2px 0",
+                          color: '#64748b',
+                          fontSize: '14px',
+                          margin: '2px 0',
                         }}
                       >
                         IP: {conn.ip}
                       </p>
                       <p
                         style={{
-                          color: "#64748b",
-                          fontSize: "14px",
-                          margin: "2px 0",
+                          color: '#64748b',
+                          fontSize: '14px',
+                          margin: '2px 0',
                         }}
                       >
                         User: {conn.user}
                       </p>
                       <p
                         style={{
-                          color: "#64748b",
-                          fontSize: "14px",
-                          margin: "2px 0",
+                          color: '#64748b',
+                          fontSize: '14px',
+                          margin: '2px 0',
                         }}
                       >
                         Password: ******
@@ -427,83 +429,110 @@ const ConnectionSelectorView = () => {
 
                   <div
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "stretch",
-                      gap: "16px",
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      gap: '16px',
                     }}
                   >
                     <button
-                      style={{...actionStyles.actionButton, backgroundColor: "#E5E4E2", color: "black"}}
+                      style={{
+                        ...actionStyles.actionButton,
+                        backgroundColor: '#E5E4E2',
+                        color: 'black',
+                      }}
                       onMouseEnter={(e) =>
-                        Object.assign(e.currentTarget.style, actionStyles.hoverShellStyle)
+                        Object.assign(
+                          e.currentTarget.style,
+                          actionStyles.hoverShellStyle,
+                        )
                       }
                       onMouseLeave={(e) =>
                         Object.assign(e.currentTarget.style, {
-                          backgroundColor: "#E5E4E2",
-                          transform: "none",
+                          backgroundColor: '#E5E4E2',
+                          transform: 'none',
                         })
                       }
                       onMouseDown={(e) =>
-                        Object.assign(e.currentTarget.style, actionStyles.activeStyle)
+                        Object.assign(
+                          e.currentTarget.style,
+                          actionStyles.activeStyle,
+                        )
                       }
                       onMouseUp={(e) =>
                         Object.assign(e.currentTarget.style, {
-                          transform: "none",
+                          transform: 'none',
                         })
                       }
-                      onClick={() => handleConnectClick(conn, "direct_ssh")}
+                      onClick={() => handleConnectClick(conn, 'direct_ssh')}
                     >
                       <TbBrandPowershell size={14} />
                       Shell
                     </button>
 
                     <button
-                      style={{...actionStyles.actionButton, backgroundColor: "#2563eb"}}
+                      style={{
+                        ...actionStyles.actionButton,
+                        backgroundColor: '#2563eb',
+                      }}
                       onMouseEnter={(e) =>
-                        Object.assign(e.currentTarget.style, actionStyles.hoverDockerStyle)
-
+                        Object.assign(
+                          e.currentTarget.style,
+                          actionStyles.hoverDockerStyle,
+                        )
                       }
                       onMouseLeave={(e) =>
                         Object.assign(e.currentTarget.style, {
-                          backgroundColor: "#2563eb",
-                          transform: "none",
+                          backgroundColor: '#2563eb',
+                          transform: 'none',
                         })
                       }
                       onMouseDown={(e) =>
-                        Object.assign(e.currentTarget.style, actionStyles.activeStyle)
+                        Object.assign(
+                          e.currentTarget.style,
+                          actionStyles.activeStyle,
+                        )
                       }
                       onMouseUp={(e) =>
                         Object.assign(e.currentTarget.style, {
-                          transform: "none",
+                          transform: 'none',
                         })
                       }
-                      onClick={() => handleConnectClick(conn, "docker_attach")}
+                      onClick={() => handleConnectClick(conn, 'docker_attach')}
                     >
                       <FaDocker size={14} />
                       Attach
                     </button>
 
                     <button
-                      style={{...actionStyles.actionButton, backgroundColor: "#2563eb"}}
+                      style={{
+                        ...actionStyles.actionButton,
+                        backgroundColor: '#2563eb',
+                      }}
                       onMouseEnter={(e) =>
-                        Object.assign(e.currentTarget.style, actionStyles.hoverDockerStyle)
+                        Object.assign(
+                          e.currentTarget.style,
+                          actionStyles.hoverDockerStyle,
+                        )
                       }
                       onMouseLeave={(e) =>
                         Object.assign(e.currentTarget.style, {
-                          backgroundColor: "#2563eb",
-                          transform: "none",
+                          backgroundColor: '#2563eb',
+                          transform: 'none',
                         })
                       }
                       onMouseDown={(e) =>
-                        Object.assign(e.currentTarget.style, actionStyles.activeStyle)
+                        Object.assign(
+                          e.currentTarget.style,
+                          actionStyles.activeStyle,
+                        )
                       }
                       onMouseUp={(e) =>
                         Object.assign(e.currentTarget.style, {
-                          transform: "none",
+                          transform: 'none',
                         })
                       }
-                      onClick={() => handleConnectClick(conn, "docker_exec")}
+                      onClick={() => handleConnectClick(conn, 'docker_exec')}
                     >
                       <FaDocker size={14} />
                       Exec
@@ -520,45 +549,45 @@ const ConnectionSelectorView = () => {
       {showAuthModal && (
         <div
           style={{
-            position: "fixed",
+            position: 'fixed',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             zIndex: 1000,
           }}
           onClick={() => setShowAuthModal(false)}
         >
           <div
             style={{
-              backgroundColor: "white",
-              borderRadius: "12px",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "90%",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <h2
               style={{
-                margin: "0 0 8px 0",
-                color: "#1a365d",
-                fontSize: "24px",
-                fontWeight: "600",
+                margin: '0 0 8px 0',
+                color: '#1a365d',
+                fontSize: '24px',
+                fontWeight: '600',
               }}
             >
               Connect to {selectedConnection?.hostname}
             </h2>
             <p
               style={{
-                color: "#64748b",
-                marginBottom: "24px",
-                fontSize: "14px",
+                color: '#64748b',
+                marginBottom: '24px',
+                fontSize: '14px',
               }}
             >
               Choose authentication method
@@ -567,67 +596,67 @@ const ConnectionSelectorView = () => {
             {/* Auth Method Tabs */}
             <div
               style={{
-                display: "flex",
-                gap: "8px",
-                marginBottom: "24px",
-                borderBottom: "1px solid #e2e8f0",
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '24px',
+                borderBottom: '1px solid #e2e8f0',
               }}
             >
               <button
                 style={{
-                  padding: "12px 24px",
-                  border: "none",
-                  backgroundColor: "transparent",
-                  color: authMethod === "password" ? "#2563eb" : "#64748b",
+                  padding: '12px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: authMethod === 'password' ? '#2563eb' : '#64748b',
                   borderBottom:
-                    authMethod === "password" ? "2px solid #2563eb" : "none",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "500",
+                    authMethod === 'password' ? '2px solid #2563eb' : 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                 }}
-                onClick={() => setAuthMethod("password")}
+                onClick={() => setAuthMethod('password')}
               >
                 Password
               </button>
               <button
                 style={{
-                  padding: "12px 24px",
-                  border: "none",
-                  backgroundColor: "transparent",
-                  color: authMethod === "keyfile" ? "#2563eb" : "#64748b",
+                  padding: '12px 24px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: authMethod === 'keyfile' ? '#2563eb' : '#64748b',
                   borderBottom:
-                    authMethod === "keyfile" ? "2px solid #2563eb" : "none",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "500",
+                    authMethod === 'keyfile' ? '2px solid #2563eb' : 'none',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                 }}
-                onClick={() => setAuthMethod("keyfile")}
+                onClick={() => setAuthMethod('keyfile')}
               >
                 SSH Key
               </button>
             </div>
 
             {/* Password Input */}
-            {authMethod === "password" && (
-              <div style={{ marginBottom: "24px" }}>
+            {authMethod === 'password' && (
+              <div style={{ marginBottom: '24px' }}>
                 <label
                   style={{
-                    display: "block",
-                    marginBottom: "8px",
-                    color: "#1a365d",
-                    fontSize: "14px",
-                    fontWeight: "500",
+                    display: 'block',
+                    marginBottom: '8px',
+                    color: '#1a365d',
+                    fontSize: '14px',
+                    fontWeight: '500',
                   }}
                 >
                   Password
                 </label>
                 <div
                   style={{
-                    display: "flex",
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    alignContent: "center",
-                    alignItems: "center",
+                    display: 'flex',
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    alignContent: 'center',
+                    alignItems: 'center',
                     gap: 4,
                   }}
                 >
@@ -637,27 +666,27 @@ const ConnectionSelectorView = () => {
                     onChange={(e) => setAuthPassword(e.target.value)}
                     placeholder="Enter password"
                     style={{
-                      width: "100%",
-                      padding: "12px",
-                      borderRadius: "6px",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "14px",
-                      boxSizing: "border-box",
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px',
+                      boxSizing: 'border-box',
                     }}
                     onKeyPress={(e) => {
-                      if (e.key === "Enter") handleAuthSubmit();
+                      if (e.key === 'Enter') handleAuthSubmit();
                     }}
                   />
                   <CiTrash
                     title={`Forget password for ${selectedConnection?.hostname}`}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: 'pointer' }}
                     size={28}
                     onClick={() => {
                       clearStoredCredentials(
                         selectedConnection?.hostname,
-                        "password",
+                        'password',
                       );
-                      setAuthPassword("");
+                      setAuthPassword('');
                     }}
                   />
                 </div>
@@ -665,26 +694,26 @@ const ConnectionSelectorView = () => {
             )}
 
             {/* Key File Uploader */}
-            {authMethod === "keyfile" && (
-              <div style={{ marginBottom: "24px" }}>
+            {authMethod === 'keyfile' && (
+              <div style={{ marginBottom: '24px' }}>
                 <label
                   style={{
-                    display: "block",
-                    marginBottom: "8px",
-                    color: "#1a365d",
-                    fontSize: "14px",
-                    fontWeight: "500",
+                    display: 'block',
+                    marginBottom: '8px',
+                    color: '#1a365d',
+                    fontSize: '14px',
+                    fontWeight: '500',
                   }}
                 >
                   SSH Private Key
                 </label>
                 <div
                   style={{
-                    border: "2px dashed #cbd5e1",
-                    borderRadius: "6px",
-                    padding: "24px",
-                    textAlign: "center",
-                    backgroundColor: "#f8fafc",
+                    border: '2px dashed #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '24px',
+                    textAlign: 'center',
+                    backgroundColor: '#f8fafc',
                   }}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
@@ -695,25 +724,25 @@ const ConnectionSelectorView = () => {
                   <input
                     type="file"
                     onChange={(e) => handleFileUpload(e.target.files[0])}
-                    style={{ display: "none" }}
+                    style={{ display: 'none' }}
                     id="keyfile-upload"
                   />
                   <label
                     htmlFor="keyfile-upload"
                     style={{
-                      cursor: "pointer",
-                      color: "#2563eb",
-                      fontSize: "14px",
-                      fontWeight: "500",
+                      cursor: 'pointer',
+                      color: '#2563eb',
+                      fontSize: '14px',
+                      fontWeight: '500',
                     }}
                   >
-                    {keyFile ? keyFile.name : "Click to upload key file"}
+                    {keyFile ? keyFile.name : 'Click to upload key file'}
                   </label>
                   <p
                     style={{
-                      color: "#64748b",
-                      fontSize: "12px",
-                      marginTop: "8px",
+                      color: '#64748b',
+                      fontSize: '12px',
+                      marginTop: '8px',
                     }}
                   >
                     Upload access key file
@@ -725,21 +754,21 @@ const ConnectionSelectorView = () => {
             {/* Confirmation Buttons */}
             <div
               style={{
-                display: "flex",
-                gap: "12px",
-                justifyContent: "flex-end",
+                display: 'flex',
+                gap: '12px',
+                justifyContent: 'flex-end',
               }}
             >
               <button
                 style={{
-                  padding: "10px 20px",
-                  border: "1px solid #e2e8f0",
-                  backgroundColor: "white",
-                  color: "#64748b",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "500",
+                  padding: '10px 20px',
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: 'white',
+                  color: '#64748b',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                 }}
                 onClick={() => setShowAuthModal(false)}
               >
@@ -747,14 +776,14 @@ const ConnectionSelectorView = () => {
               </button>
               <button
                 style={{
-                  padding: "10px 20px",
-                  border: "none",
-                  backgroundColor: "#2563eb",
-                  color: "white",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "500",
+                  padding: '10px 20px',
+                  border: 'none',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                 }}
                 onClick={handleAuthSubmit}
               >
@@ -770,22 +799,22 @@ const ConnectionSelectorView = () => {
 
 const actionStyles = {
   actionButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    width: "100%",
-    padding: "6px 12px",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: "500",
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    width: '100%',
+    padding: '6px 12px',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: '500',
     lineHeight: 1,
-    transition: "background-color 0.15s ease, transform 0.05s ease",
+    transition: 'background-color 0.15s ease, transform 0.05s ease',
   },
-  hoverShellStyle: { backgroundColor: "#C7C5C1" },
-  hoverDockerStyle: { backgroundColor: "#1d4ed8" },
-  activeStyle: { transform: "translateY(1px)" },
+  hoverShellStyle: { backgroundColor: '#C7C5C1' },
+  hoverDockerStyle: { backgroundColor: '#1d4ed8' },
+  activeStyle: { transform: 'translateY(1px)' },
 };
 
 export default ConnectionSelectorView;
