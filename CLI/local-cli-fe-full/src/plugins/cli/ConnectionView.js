@@ -20,65 +20,42 @@ const ConnectionView = ({ conn }) => {
     <>
       <div
         style={{
-          maxWidth: '100%',
-          height: '100%',
+          width: '100%',
           display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignContent: 'center',
+          flexDirection: 'row',
           alignItems: 'center',
+          justifyContent: 'flex-start',
+          gap: '5px',
+          flexWrap: 'wrap',
+          padding: '32px',
         }}
       >
-        {console.log(
-          Object.entries(conn).map(([id, conn]) => {
-            console.log('ID: ', id);
-            console.log('Conn: ', conn);
-          }),
-        )}
-        {console.log('Connection in connectionView: ', conn)}
-        <div
-          style={{
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {Object.entries(conn).map(([id, conn]) => (
-            <div
-              style={{ height: '50%', width: '50%', border: '1px solid red' }}
-            >
-              <StatusBar id={id} conn={conn} />
-              <TerminalView
-                key={id}
-                id={id}
-                host={conn.ip}
-                user={conn.user}
-                credential={conn.credential}
-                action={conn.action ?? 'direct_ssh'}
-                authType={conn.authType}
-              />
-            </div>
-          ))}
-          {/* <TerminalView
-            id = {id}
-            host={conn.ip}
-            user={conn.user}
-            credential={conn.credential}
-            action={conn.action ?? 'direct_ssh'}
-            authType={conn.authType}
-          /> */}
-        </div>
+        {Object.entries(conn).map(([id, conn]) => (
+          <div
+            style={{
+              width: '100%',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              backgroundColor: conn.starred ? '#fffbeb' : 'white',
+              transition: 'background-color 0.2s',
+              padding: '4px',
+            }}
+          >
+            <StatusBar id={id} conn={conn} />
+            <TerminalView
+              key={id}
+              id={id}
+              host={conn.ip}
+              user={conn.user}
+              credential={conn.credential}
+              action={conn.action ?? 'direct_ssh'}
+              authType={conn.authType}
+            />
+          </div>
+        ))}
       </div>
     </>
   );
 };
 
 export default ConnectionView;
-/*
-
-structured_data =
-{
-'type': 'table', 
-'data': [{'Address': '23.239.12.151:32349', 'Node Type': 'node', 'Node Name': 'node', 'Status': ''}]
-} 
-*/

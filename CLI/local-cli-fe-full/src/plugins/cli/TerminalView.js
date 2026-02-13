@@ -31,7 +31,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
     if (!isConnected) {
       const timer = setTimeout(() => {
         console.log('Not connected. return to main.');
-        alert(`Could not connect to ${id}.\nCheck Password or SSH Key.`);
+        alert(`Could not connect to ${id}.`);
         removeActiveConnection(id);
       }, 1500);
 
@@ -171,9 +171,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
         id="terminal-overall-div"
         ref={terminalRef}
         style={{
-          height: '100%',
-          width: '1600px',
-          boxSizing: 'border-box',
+          width: '100%',
         }}
       />
     </>

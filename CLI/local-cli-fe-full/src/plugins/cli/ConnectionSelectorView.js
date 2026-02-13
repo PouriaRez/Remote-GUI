@@ -30,6 +30,8 @@ const ConnectionSelectorView = () => {
   const [authMethod, setAuthMethod] = useState('password'); // "password" or "keyfile"
   const [authPassword, setAuthPassword] = useState('');
   const [keyFile, setKeyFile] = useState(null);
+  const [connectionsTab, setConnectionsTab] = useState('all');
+  const [activeTerminals, setActiveTerminals] = useState(null);
 
   const addConnection = () => {
     if (
@@ -90,9 +92,6 @@ const ConnectionSelectorView = () => {
   };
 
   const handleAuthSubmit = () => {
-    // TODO HERE:
-    // if uuid aka ip already in active connections, return.
-
     console.log(`Submitting with action: ${selectedAction}`);
     if (authMethod === 'password' && !authPassword) {
       alert('Please enter a password');
@@ -116,7 +115,15 @@ const ConnectionSelectorView = () => {
       });
     }
 
-    const uuid = `${selectedConnection.ip}-${Date.now()}`;
+    var uuid = ``;
+
+    if (selectedAction === 'docker_attach') {
+      uuid = `${selectedConnection.ip}-${selectedAction}`;
+    } else {
+      uuid = `${selectedConnection.ip}-${Date.now()}`;
+    }
+
+    console.log('given UUID: ', uuid);
     setActiveConnection(uuid, {
       ...selectedConnection,
       user: 'root',
@@ -125,21 +132,11 @@ const ConnectionSelectorView = () => {
       authType: authMethod,
       isConnected: false,
     });
-
-    // OLD CLI State
-    // setActiveConnection({
-    //   ...selectedConnection,
-    //   user: 'root',
-    //   credential: authMethod === 'keyfile' ? keyFile.contents : authPassword,
-    //   action: selectedAction ?? 'direct_ssh',
-    //   authType: authMethod,
-    // });
-
     setShowAuthModal(false);
   };
 
   useEffect(() => {
-    console.log('AC changed:', activeConnection);
+    setActiveTerminals(activeConnection);
   }, [activeConnection]);
 
   const handleFileUpload = async (file) => {
@@ -190,144 +187,278 @@ const ConnectionSelectorView = () => {
     return a.hostname.localeCompare(b.hostname);
   });
 
+  // Returns an enabled/disabled (docker_attach) button depending if it is in use already.
+  const attachCheck = cliState((state) => state.activeConnection);
+  const renderDockerAttach = (conn) => {
+    const id = `${conn.ip}-docker_attach`;
+    const isAttached = attachCheck[id]?.action === 'docker_attach';
+    return (
+      <>
+        {!isAttached ? (
+          <button
+            style={{
+              ...actionStyles.actionButton,
+              backgroundColor: '#2563eb',
+            }}
+            onMouseEnter={(e) =>
+              Object.assign(
+                e.currentTarget.style,
+                actionStyles.hoverDockerStyle,
+              )
+            }
+            onMouseLeave={(e) =>
+              Object.assign(e.currentTarget.style, {
+                backgroundColor: '#2563eb',
+                transform: 'none',
+              })
+            }
+            onMouseDown={(e) =>
+              Object.assign(e.currentTarget.style, actionStyles.activeStyle)
+            }
+            onMouseUp={(e) =>
+              Object.assign(e.currentTarget.style, {
+                transform: 'none',
+              })
+            }
+            onClick={() => handleConnectClick(conn, 'docker_attach')}
+          >
+            <FaDocker size={24} />
+            Attach
+          </button>
+        ) : (
+          <button
+            style={{
+              ...actionStyles.actionButton,
+              backgroundColor: 'green',
+              cursor: 'not-allowed',
+            }}
+          >
+            <FaDocker size={24} />
+            Attach
+          </button>
+        )}
+      </>
+    );
+  };
+
+  const displayChosenList = (selectedList) => {
+    const normalizedList = Array.isArray(selectedList)
+      ? selectedList
+      : Object.entries(selectedList).map(([key, value]) => ({
+          id: key,
+          ...value,
+        }));
+
+    if (normalizedList.length < 1)
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <p style={{ fontSize: '16px' }}>No active terminals yet</p>
+        </div>
+      );
+
+    const getConnID = (id, action) => {
+      const uniqueID = id?.split('-')[1];
+
+      if (!uniqueID) return;
+
+      return (
+        <h3
+          style={{
+            color: '#64748b',
+            fontSize: '14px',
+            margin: '2px 0',
+            fontWeight: '700',
+          }}
+        >
+          {`T-ID: ${uniqueID}`}
+        </h3>
+      );
+    };
+
+    return normalizedList.map((conn) => (
+      <div
+        key={conn.id}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px',
+          border: '1px solid #e2e8f0',
+          borderRadius: '8px',
+          backgroundColor: conn.starred ? '#fffbeb' : 'white',
+          transition: 'background-color 0.2s',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            width: '100%',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '16px',
+          }}
+        >
+          {/* Star Button */}
+          {/* <button
+                      onClick={() => toggleStar(conn.id)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: "20px",
+                        color: conn.starred ? "#f59e0b" : "#cbd5e1",
+                        padding: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        transition: "color 0.2s",
+                      }}
+                    >
+                      {conn.starred ? <FaStar /> : <FaRegStar />}
+                    </button> */}
+
+          <div>
+            <h3
+              style={{
+                margin: 0,
+                color: '#1a365d',
+                fontSize: '16px',
+                fontWeight: '500',
+              }}
+            >
+              {conn.hostname}
+            </h3>
+            <p
+              style={{
+                color: '#64748b',
+                fontSize: '14px',
+                margin: '2px 0',
+              }}
+            >
+              IP: {conn.ip}
+            </p>
+            <p
+              style={{
+                color: '#64748b',
+                fontSize: '14px',
+                margin: '2px 0',
+              }}
+            >
+              User: {conn.user}
+            </p>
+            <p
+              style={{
+                color: '#64748b',
+                fontSize: '14px',
+                margin: '2px 0',
+              }}
+            >
+              Password: ******
+            </p>
+
+            {getConnID(conn.id)}
+          </div>
+          {connectionsTab === 'all' && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                gap: '16px',
+              }}
+            >
+              <button
+                style={{
+                  ...actionStyles.actionButton,
+                  backgroundColor: '#E5E4E2',
+                  color: 'black',
+                  width: '100%',
+                }}
+                onMouseEnter={(e) =>
+                  Object.assign(
+                    e.currentTarget.style,
+                    actionStyles.hoverShellStyle,
+                  )
+                }
+                onMouseLeave={(e) =>
+                  Object.assign(e.currentTarget.style, {
+                    backgroundColor: '#E5E4E2',
+                    transform: 'none',
+                  })
+                }
+                onMouseDown={(e) =>
+                  Object.assign(e.currentTarget.style, actionStyles.activeStyle)
+                }
+                onMouseUp={(e) =>
+                  Object.assign(e.currentTarget.style, {
+                    transform: 'none',
+                  })
+                }
+                onClick={() => handleConnectClick(conn, 'direct_ssh')}
+              >
+                <TbBrandPowershell size={24} />
+                Shell
+              </button>
+
+              {renderDockerAttach(conn)}
+
+              <button
+                style={{
+                  ...actionStyles.actionButton,
+                  backgroundColor: '#2563eb',
+                }}
+                onMouseEnter={(e) =>
+                  Object.assign(
+                    e.currentTarget.style,
+                    actionStyles.hoverDockerStyle,
+                  )
+                }
+                onMouseLeave={(e) =>
+                  Object.assign(e.currentTarget.style, {
+                    backgroundColor: '#2563eb',
+                    transform: 'none',
+                  })
+                }
+                onMouseDown={(e) =>
+                  Object.assign(e.currentTarget.style, actionStyles.activeStyle)
+                }
+                onMouseUp={(e) =>
+                  Object.assign(e.currentTarget.style, {
+                    transform: 'none',
+                  })
+                }
+                onClick={() => handleConnectClick(conn, 'docker_exec')}
+              >
+                <FaDocker size={24} />
+                Exec
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    ));
+  };
+
   return (
     <div
       style={{
-        width: '100%',
-        minHeight: '100vh',
+        width: '50%',
         padding: '32px',
         boxSizing: 'border-box',
         overflow: 'hidden',
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <div style={{ maxWidth: '100%', margin: '0 auto' }}>
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '32px',
-          }}
-        >
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                color: '#1a365d',
-                fontSize: '32px',
-                fontWeight: '600',
-              }}
-            >
-              Remote Console
-            </h1>
-            <p style={{ color: '#64748b', marginTop: '8px', fontSize: '14px' }}>
-              SSH and Manage your AnyLog Nodes
-            </p>
-          </div>
-
-          {/* Add Connection Button */}
-          <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: '#000',
-              color: 'white',
-              padding: '12px 24px',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '500',
-              transition: 'background-color 0.2s',
-            }}
-            onClick={addConnection}
-          >
-            + Add Connection
-          </button>
-        </div>
-
-        {/* Connection Form */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            marginBottom: '24px',
-            backgroundColor: 'white',
-            padding: '16px',
-            borderRadius: '8px',
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <input
-            type="text"
-            placeholder="Hostname"
-            value={newConnection.hostname}
-            onChange={(e) =>
-              setNewConnection({ ...newConnection, hostname: e.target.value })
-            }
-            style={{
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-            }}
-          />
-          <input
-            type="text"
-            placeholder="IP Address"
-            value={newConnection.ip}
-            onChange={(e) =>
-              setNewConnection({ ...newConnection, ip: e.target.value })
-            }
-            style={{
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-            }}
-          />
-          <input
-            type="text"
-            placeholder="User"
-            value={newConnection.user}
-            onChange={(e) =>
-              setNewConnection({ ...newConnection, user: e.target.value })
-            }
-            style={{
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={newConnection.password}
-            onChange={(e) =>
-              setNewConnection({ ...newConnection, password: e.target.value })
-            }
-            style={{
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #cbd5e1',
-              fontSize: '14px',
-            }}
-          />
-        </div>
-
+      <div>
         {/* Connections List */}
         <div
           style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-            padding: '32px',
-            border: '1px solid #e2e8f0',
+            width: '20vw',
           }}
         >
           {connections.length === 0 ? (
@@ -361,207 +492,116 @@ const ConnectionSelectorView = () => {
             </div>
           ) : (
             <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                padding: '16px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+              }}
             >
-              {sortedConnections.map((conn) => (
-                <div
-                  key={conn.id}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-around',
+                  alignItems: 'center',
+                }}
+              >
+                <button
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
                     padding: '16px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid #b0c3db',
                     borderRadius: '8px',
-                    backgroundColor: conn.starred ? '#fffbeb' : 'white',
-                    transition: 'background-color 0.2s',
+                    backgroundColor: '#ebeef1',
+                    color: 'black',
+                  }}
+                  onMouseEnter={(e) =>
+                    Object.assign(
+                      e.currentTarget.style,
+                      actionStyles.hoverShellStyle,
+                    )
+                  }
+                  onMouseLeave={(e) =>
+                    Object.assign(e.currentTarget.style, {
+                      backgroundColor: '#ebeef1',
+                      transform: 'none',
+                    })
+                  }
+                  onMouseDown={(e) =>
+                    Object.assign(
+                      e.currentTarget.style,
+                      actionStyles.activeStyle,
+                    )
+                  }
+                  onMouseUp={(e) =>
+                    Object.assign(e.currentTarget.style, {
+                      transform: 'none',
+                    })
+                  }
+                  onClick={() => {
+                    setConnectionsTab('all');
                   }}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px',
-                    }}
-                  >
-                    {/* Star Button */}
-                    {/* <button
-                      onClick={() => toggleStar(conn.id)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontSize: "20px",
-                        color: conn.starred ? "#f59e0b" : "#cbd5e1",
-                        padding: "4px",
-                        display: "flex",
-                        alignItems: "center",
-                        transition: "color 0.2s",
-                      }}
-                    >
-                      {conn.starred ? <FaStar /> : <FaRegStar />}
-                    </button> */}
-
-                    <div>
-                      <h3
-                        style={{
-                          margin: 0,
-                          color: '#1a365d',
-                          fontSize: '16px',
-                          fontWeight: '500',
-                        }}
-                      >
-                        {conn.hostname}
-                      </h3>
-                      <p
-                        style={{
-                          color: '#64748b',
-                          fontSize: '14px',
-                          margin: '2px 0',
-                        }}
-                      >
-                        IP: {conn.ip}
-                      </p>
-                      <p
-                        style={{
-                          color: '#64748b',
-                          fontSize: '14px',
-                          margin: '2px 0',
-                        }}
-                      >
-                        User: {conn.user}
-                      </p>
-                      <p
-                        style={{
-                          color: '#64748b',
-                          fontSize: '14px',
-                          margin: '2px 0',
-                        }}
-                      >
-                        Password: ******
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'stretch',
-                      gap: '16px',
-                    }}
-                  >
-                    <button
-                      style={{
-                        ...actionStyles.actionButton,
-                        backgroundColor: '#E5E4E2',
-                        color: 'black',
-                      }}
-                      onMouseEnter={(e) =>
-                        Object.assign(
-                          e.currentTarget.style,
-                          actionStyles.hoverShellStyle,
-                        )
-                      }
-                      onMouseLeave={(e) =>
-                        Object.assign(e.currentTarget.style, {
-                          backgroundColor: '#E5E4E2',
-                          transform: 'none',
-                        })
-                      }
-                      onMouseDown={(e) =>
-                        Object.assign(
-                          e.currentTarget.style,
-                          actionStyles.activeStyle,
-                        )
-                      }
-                      onMouseUp={(e) =>
-                        Object.assign(e.currentTarget.style, {
-                          transform: 'none',
-                        })
-                      }
-                      onClick={() => handleConnectClick(conn, 'direct_ssh')}
-                    >
-                      <TbBrandPowershell size={14} />
-                      Shell
-                    </button>
-
-                    <button
-                      style={{
-                        ...actionStyles.actionButton,
-                        backgroundColor: '#2563eb',
-                      }}
-                      onMouseEnter={(e) =>
-                        Object.assign(
-                          e.currentTarget.style,
-                          actionStyles.hoverDockerStyle,
-                        )
-                      }
-                      onMouseLeave={(e) =>
-                        Object.assign(e.currentTarget.style, {
-                          backgroundColor: '#2563eb',
-                          transform: 'none',
-                        })
-                      }
-                      onMouseDown={(e) =>
-                        Object.assign(
-                          e.currentTarget.style,
-                          actionStyles.activeStyle,
-                        )
-                      }
-                      onMouseUp={(e) =>
-                        Object.assign(e.currentTarget.style, {
-                          transform: 'none',
-                        })
-                      }
-                      onClick={() => handleConnectClick(conn, 'docker_attach')}
-                    >
-                      <FaDocker size={14} />
-                      Attach
-                    </button>
-
-                    <button
-                      style={{
-                        ...actionStyles.actionButton,
-                        backgroundColor: '#2563eb',
-                      }}
-                      onMouseEnter={(e) =>
-                        Object.assign(
-                          e.currentTarget.style,
-                          actionStyles.hoverDockerStyle,
-                        )
-                      }
-                      onMouseLeave={(e) =>
-                        Object.assign(e.currentTarget.style, {
-                          backgroundColor: '#2563eb',
-                          transform: 'none',
-                        })
-                      }
-                      onMouseDown={(e) =>
-                        Object.assign(
-                          e.currentTarget.style,
-                          actionStyles.activeStyle,
-                        )
-                      }
-                      onMouseUp={(e) =>
-                        Object.assign(e.currentTarget.style, {
-                          transform: 'none',
-                        })
-                      }
-                      onClick={() => handleConnectClick(conn, 'docker_exec')}
-                    >
-                      <FaDocker size={14} />
-                      Exec
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  All Connections
+                </button>
+                <button
+                  style={{
+                    padding: '16px',
+                    border: '1px solid #b0c3db',
+                    borderRadius: '8px',
+                    backgroundColor: '#ebeef1',
+                    color: 'black',
+                  }}
+                  onMouseEnter={(e) =>
+                    Object.assign(
+                      e.currentTarget.style,
+                      actionStyles.hoverShellStyle,
+                    )
+                  }
+                  onMouseLeave={(e) =>
+                    Object.assign(e.currentTarget.style, {
+                      backgroundColor: '#ebeef1',
+                      transform: 'none',
+                    })
+                  }
+                  onMouseDown={(e) =>
+                    Object.assign(
+                      e.currentTarget.style,
+                      actionStyles.activeStyle,
+                    )
+                  }
+                  onMouseUp={(e) =>
+                    Object.assign(e.currentTarget.style, {
+                      transform: 'none',
+                    })
+                  }
+                  onClick={() => {
+                    setConnectionsTab('active');
+                  }}
+                >
+                  Active Terminals
+                </button>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  maxHeight: '70vh',
+                  overflowY: 'auto',
+                }}
+              >
+                {connectionsTab === 'all'
+                  ? displayChosenList(sortedConnections)
+                  : displayChosenList(activeTerminals)}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Authentication for psk and keyfiel */}
+      {/* Authentication for psk and keyfile */}
       {showAuthModal && (
         <div
           style={{

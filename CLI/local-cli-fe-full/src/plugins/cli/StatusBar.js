@@ -49,6 +49,11 @@ const StatusBar = ({ id, conn }) => {
     (state) => state.activeConnection[id]?.isConnected ?? false,
   );
 
+  const getConnID = (id) => {
+    const uniqueID = id?.split('-')[1];
+    return uniqueID;
+  };
+
   return (
     <div
       style={{
@@ -122,6 +127,16 @@ const StatusBar = ({ id, conn }) => {
         >
           {conn.hostname ?? 'Host'}({conn.ip ?? 'IP'})
         </span>
+      </div>
+      <div
+        style={{
+          color: '#64748b',
+          fontSize: '14px',
+          margin: '2px 0',
+          fontWeight: '700',
+        }}
+      >
+        T-ID:{getConnID(id)}
       </div>
       <TimeCounter enabled={isConnected} />
     </div>
