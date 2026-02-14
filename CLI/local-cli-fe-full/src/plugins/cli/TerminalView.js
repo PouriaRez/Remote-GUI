@@ -23,7 +23,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
     }, 1000);
 
     return () => clearInterval(wsStatusCheck);
-  }, []);
+  }, [id, setIsConnected]);
 
   // If connection is broken or not authorized, return to Cli main page
   useEffect(() => {
@@ -37,6 +37,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
 
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
   useEffect(() => {
@@ -163,7 +164,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
     };
 
     run();
-  }, [host, user, credential, action]);
+  }, [host, user, credential, action, authType]);
 
   return (
     <>

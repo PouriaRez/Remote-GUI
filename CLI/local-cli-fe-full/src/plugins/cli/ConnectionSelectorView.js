@@ -11,18 +11,8 @@ import {
 } from './utils/cred';
 import { TbBrandPowershell } from 'react-icons/tb';
 
-const ConnectionSelectorView = () => {
-  const [connections, setConnections] = useState([]);
+const ConnectionSelectorView = ({ connections, setConnections }) => {
   const { setActiveConnection, activeConnection } = cliState();
-
-  const [newConnection, setNewConnection] = useState({
-    hostname: '',
-    ip: '',
-    user: '',
-    credential: '',
-    status: 'active',
-    starred: false,
-  });
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
@@ -32,32 +22,6 @@ const ConnectionSelectorView = () => {
   const [keyFile, setKeyFile] = useState(null);
   const [connectionsTab, setConnectionsTab] = useState('all');
   const [activeTerminals, setActiveTerminals] = useState(null);
-
-  const addConnection = () => {
-    if (
-      !newConnection.hostname ||
-      !newConnection.ip ||
-      !newConnection.user ||
-      !newConnection.credential
-    ) {
-      alert('Please fill in all fields');
-      return;
-    }
-
-    setConnections([
-      { ...newConnection, id: Date.now().toString() },
-      ...connections,
-    ]);
-
-    setNewConnection({
-      hostname: '',
-      ip: '',
-      user: '',
-      credential: '',
-      status: 'active',
-      starred: false,
-    });
-  };
 
   const removeConnection = (id) => {
     setConnections(connections.filter((conn) => conn.id !== id));
@@ -115,15 +79,11 @@ const ConnectionSelectorView = () => {
       });
     }
 
-    var uuid = ``;
+    var uuid =
+      selectedAction === 'docker_attach'
+        ? `${selectedConnection.ip}-${selectedAction}`
+        : `${selectedConnection.ip}-${Date.now()}`;
 
-    if (selectedAction === 'docker_attach') {
-      uuid = `${selectedConnection.ip}-${selectedAction}`;
-    } else {
-      uuid = `${selectedConnection.ip}-${Date.now()}`;
-    }
-
-    console.log('given UUID: ', uuid);
     setActiveConnection(uuid, {
       ...selectedConnection,
       user: 'root',
@@ -179,7 +139,7 @@ const ConnectionSelectorView = () => {
       }
     };
     fetchNodes();
-  }, []);
+  }, [setConnections]);
 
   const sortedConnections = [...connections].sort((a, b) => {
     if (a.starred && !b.starred) return -1;
@@ -188,10 +148,10 @@ const ConnectionSelectorView = () => {
   });
 
   // Returns an enabled/disabled (docker_attach) button depending if it is in use already.
-  const attachCheck = cliState((state) => state.activeConnection);
-  const renderDockerAttach = (conn) => {
+  const activeConnectionState = cliState((state) => state.activeConnection);
+  const renderDockerAttachBtn = (conn) => {
     const id = `${conn.ip}-docker_attach`;
-    const isAttached = attachCheck[id]?.action === 'docker_attach';
+    const isAttached = activeConnectionState[id]?.action === 'docker_attach';
     return (
       <>
         {!isAttached ? (
@@ -258,7 +218,7 @@ const ConnectionSelectorView = () => {
             alignItems: 'center',
           }}
         >
-          <p style={{ fontSize: '16px' }}>No active terminals yet</p>
+          <p style={{ fontSize: '16px' }}>No active terminal</p>
         </div>
       );
 
@@ -283,7 +243,7 @@ const ConnectionSelectorView = () => {
 
     return normalizedList.map((conn) => (
       <div
-        key={conn.id}
+        key={conn?.id ?? `${conn.ip}-${conn.hostname}`}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -405,7 +365,7 @@ const ConnectionSelectorView = () => {
                 Shell
               </button>
 
-              {renderDockerAttach(conn)}
+              {renderDockerAttachBtn(conn)}
 
               <button
                 style={{
