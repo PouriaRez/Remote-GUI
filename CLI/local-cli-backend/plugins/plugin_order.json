@@ -5,6 +5,6 @@
     "nodecheck",
     "calculator",
     "mcpclient",
-    "Kibana"
+    "cli"
   ]
 }

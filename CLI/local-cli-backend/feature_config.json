@@ -66,10 +66,6 @@
       "enabled": true,
       "description": "MCP Client Plugin - Integrates Ollama with AnyLog MCP"
     },
-    "kibana": {
-      "enabled": true,
-      "description": "Kibana Dashboard Plugin"
-    },
     "cli": {
       "enabled": true,
       "description": "CLI Plugin"
