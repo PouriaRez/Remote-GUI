@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
+
 import { Vault } from "../storage/vault";
 import { cliState } from "../state/state";
 import { loadSecretsFromVault } from "../storage/stateStorage";
