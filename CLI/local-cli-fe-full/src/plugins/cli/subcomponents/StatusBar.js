@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { cliState } from './state/state';
+import { cliState } from '../state/state';
 import { FaWindowClose } from 'react-icons/fa';
 import { FaCircle } from 'react-icons/fa6';
 
