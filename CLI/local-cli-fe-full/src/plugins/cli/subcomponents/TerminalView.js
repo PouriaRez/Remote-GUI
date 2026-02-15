@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
-import { cliState } from './state/state';
+import { cliState } from '../state/state';
 
 const TerminalView = ({ id, host, user, credential, action, authType }) => {
   const terminalRef = useRef(null);
