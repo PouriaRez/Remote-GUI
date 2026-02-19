@@ -309,7 +309,7 @@ const ConnectionSelectorView = () => {
             {isStarred(conn.ip) ? (
               <CiStar size={24} />
             ) : (
-              <FaStar size={24} style={{ color: 'blue' }} />
+              <FaStar size={24} style={{ color: '#2563eb' }} />
             )}
           </div>
         )}
@@ -362,7 +362,6 @@ const ConnectionSelectorView = () => {
           </div>
 
           {connectionsTab === 'all' && (
-            // ADD star icon here...
             <div
               style={{
                 display: 'flex',
