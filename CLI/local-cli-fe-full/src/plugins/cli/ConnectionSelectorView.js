@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { FaComputer, FaDocker } from 'react-icons/fa6';
 import { fetchAllNodes, normalizeNodes } from './utils/fetchNodes';
 import { cliState } from './state/state';
-import { CiTrash } from 'react-icons/ci';
+import { CiTrash, CiStar } from 'react-icons/ci';
+import { FaStar } from 'react-icons/fa';
 import { TbBrandPowershell } from 'react-icons/tb';
 import { Vault } from './storage/vault';
 import {
@@ -25,6 +26,11 @@ const ConnectionSelectorView = () => {
   const [connectionsTab, setConnectionsTab] = useState('all');
   const [activeTerminals, setActiveTerminals] = useState(null);
   const [saveToVault, setSaveToVault] = useState(false);
+  const [starredConns, setStarredConns] = useState(() => {
+    const stored = localStorage.getItem('starredConnections');
+    return stored ? JSON.parse(stored) : [];
+  });
+  const [sortedConns, setSortedConns] = useState(null);
 
   const handleRemoveConnection = (id) => {
     removeConnection(id);
@@ -160,11 +166,41 @@ const ConnectionSelectorView = () => {
     fetchNodes();
   }, [setConnectionsList]);
 
-  const sortedConnections = [...connectionsList].sort((a, b) => {
-    if (a.starred && !b.starred) return -1;
-    if (!a.starred && b.starred) return 1;
-    return a.hostname.localeCompare(b.hostname);
-  });
+  const getSortedConnections = (connections) => {
+    const sorted = [...connections].sort((a, b) => {
+      return a.hostname.localeCompare(b.hostname);
+    });
+
+    const nonStarredConns = sorted.filter(
+      (conn) => !starredConns.some((sc) => sc.ip === conn.ip),
+    );
+
+    return [...starredConns, ...nonStarredConns];
+  };
+
+  // Save starred connections to local storage
+  useEffect(() => {
+    localStorage.setItem('starredConnections', JSON.stringify(starredConns));
+  }, [starredConns]);
+
+  // Update sorted connections list that is displayed once starred/un-starred
+  useEffect(() => {
+    const sorted = getSortedConnections(connectionsList);
+    setSortedConns(sorted);
+  }, [connectionsList, starredConns]);
+
+  const handleConnStarring = (conn) => {
+    setStarredConns((prev) =>
+      prev.some((c) => c.ip === conn.ip)
+        ? prev.filter((c) => c.ip !== conn.ip)
+        : [conn, ...prev],
+    );
+  };
+
+  const isStarred = (connIP) => {
+    const found = starredConns.filter((conn) => conn.ip === connIP);
+    return found.length > 0 ? false : true;
+  };
 
   const activeConnectionState = cliState((state) => state.activeConnection);
 
@@ -259,6 +295,24 @@ const ConnectionSelectorView = () => {
           transition: 'background-color 0.2s',
         }}
       >
+        {connectionsTab === 'all' && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: 5,
+              cursor: 'pointer',
+            }}
+            onClick={() => handleConnStarring(conn)}
+          >
+            {isStarred(conn.ip) ? (
+              <CiStar size={24} />
+            ) : (
+              <FaStar size={24} style={{ color: 'blue' }} />
+            )}
+          </div>
+        )}
         <div
           style={{
             display: 'flex',
@@ -279,6 +333,11 @@ const ConnectionSelectorView = () => {
             >
               {conn.hostname}
             </h3>
+
+            <p style={{ color: '#64748b', fontSize: '14px', margin: '2px 0' }}>
+              IP: {conn.ip}
+            </p>
+
             <p style={{ color: '#64748b', fontSize: '14px', margin: '2px 0' }}>
               User: {conn.user}
             </p>
@@ -304,7 +363,6 @@ const ConnectionSelectorView = () => {
 
           {connectionsTab === 'all' && (
             // ADD star icon here...
-
             <div
               style={{
                 display: 'flex',
@@ -443,7 +501,7 @@ const ConnectionSelectorView = () => {
                 }}
               >
                 {connectionsTab === 'all'
-                  ? displayChosenList(sortedConnections)
+                  ? displayChosenList(sortedConns)
                   : displayChosenList(activeTerminals)}
               </div>
             </div>
