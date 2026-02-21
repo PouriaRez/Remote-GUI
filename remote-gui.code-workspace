@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "CLI/local-cli-backend"
+		},
+		{
+			"path": "CLI/local-cli-fe-full"
+		}
+	],
+	"settings": {}
+}

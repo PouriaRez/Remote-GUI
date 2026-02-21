@@ -25,7 +25,6 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
     return () => clearInterval(wsStatusCheck);
   }, [id, setIsConnected]);
 
-  // If connection is broken or not authorized, return to Cli main page
   useEffect(() => {
     console.log('isConnected:', isConnected);
     if (!isConnected) {
@@ -37,7 +36,6 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
 
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
   useEffect(() => {
@@ -63,18 +61,26 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
       term.open(terminalRef.current);
 
       const fitTerminal = () => {
-        if (!terminalRef.current) return;
+        if (!terminalRef.current || !fitRef.current) return;
 
         const rect = terminalRef.current.getBoundingClientRect();
-        console.log('Terminal container rect:', rect.width, rect.height);
-
         if (rect.width > 0 && rect.height > 0) {
-          fitAddon.fit();
+          try {
+            fitRef.current.fit();
+          } catch (e) {
+            // add resize error logic
+          }
         }
       };
 
-      // Fit after terminal is opened
       setTimeout(fitTerminal, 100);
+
+      const resizeObserver = new ResizeObserver(() => {
+        fitTerminal();
+      });
+      if (terminalRef.current) {
+        resizeObserver.observe(terminalRef.current);
+      }
 
       const writeErr = (msg) => {
         term.writeln('');
@@ -155,6 +161,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
       window.addEventListener('resize', handleWindowResize);
 
       return () => {
+        resizeObserver.disconnect();
         window.removeEventListener('resize', handleWindowResize);
         term.dispose();
         ws.close();
@@ -167,15 +174,15 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
   }, [host, user, credential, action, authType]);
 
   return (
-    <>
-      <div
-        id="terminal-overall-div"
-        ref={terminalRef}
-        style={{
-          width: '100%',
-        }}
-      />
-    </>
+    <div
+      id="terminal-overall-div"
+      ref={terminalRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        minHeight: '120px',
+      }}
+    />
   );
 };
 

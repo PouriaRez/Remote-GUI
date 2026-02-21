@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaComputer, FaDocker } from 'react-icons/fa6';
+import { FaComputer, FaDocker, FaChevronDown, FaChevronRight } from 'react-icons/fa6';
 import { fetchAllNodes, normalizeNodes } from './utils/fetchNodes';
 import { cliState } from './state/state';
 import { CiTrash, CiStar } from 'react-icons/ci';
@@ -15,7 +15,7 @@ import {
 
 const ConnectionSelectorView = () => {
   const { connectionsList, setConnectionsList, removeConnection } = cliState();
-  const { setActiveConnection, activeConnection, credLocked } = cliState();
+  const { setActiveConnection, activeConnection, credLocked, setFocusedTerminalId } = cliState();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
@@ -31,6 +31,11 @@ const ConnectionSelectorView = () => {
     return stored ? JSON.parse(stored) : [];
   });
   const [sortedConns, setSortedConns] = useState(null);
+  const [expandedHostnames, setExpandedHostnames] = useState({});
+  const [visibleTooltip, setVisibleTooltip] = useState(null);
+  const [terminalNames, setTerminalNames] = useState({});
+  const [editingTerminalId, setEditingTerminalId] = useState(null);
+  const [editingName, setEditingName] = useState('');
 
   const handleRemoveConnection = (id) => {
     removeConnection(id);
@@ -236,8 +241,282 @@ const ConnectionSelectorView = () => {
     );
   };
 
-  // Add starred node to local storage
-  // If local storage has stars, fetch and sort at top of list for 'all connections' view
+  const getTIdFromConnId = (id) => {
+    const part = id?.split('-')[1];
+    return part != null ? `T-ID: ${part}` : null;
+  };
+
+  const getActionLabel = (action) => {
+    const labels = { direct_ssh: 'Shell', docker_exec: 'Exec', docker_attach: 'Attach' };
+    return labels[action] || action || '—';
+  };
+
+  const toggleHostnameExpanded = (hostname) => {
+    setExpandedHostnames((prev) => ({ ...prev, [hostname]: !prev[hostname] }));
+  };
+
+  const getTerminalName = (connId, defaultName) => {
+    return terminalNames[connId] ?? defaultName;
+  };
+
+  const startEditing = (connId, currentName) => {
+    setEditingTerminalId(connId);
+    setEditingName(currentName);
+  };
+
+  const confirmActiveTerminalName = (connId) => {
+    const trimmed = editingName.trim();
+    if (trimmed) {
+      setTerminalNames((prev) => ({ ...prev, [connId]: trimmed }));
+    }
+    setEditingTerminalId(null);
+    setEditingName('');
+  };
+
+  const handleEditKeyDown = (e, connId) => {
+    if (e.key === 'Enter') confirmActiveTerminalName(connId);
+    if (e.key === 'Escape') {
+      setEditingTerminalId(null);
+      setEditingName('');
+    }
+  };
+
+  const displayActiveTerminalsTree = (activeTerminalsObj) => {
+    const list = Object.entries(activeTerminalsObj || {}).map(([key, value]) => ({
+      id: key,
+      ...value,
+    }));
+
+    if (list.length < 1)
+      return (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '32px',
+          }}
+        >
+          <p style={{ fontSize: '16px', color: '#64748b' }}>No active terminals</p>
+        </div>
+      );
+
+    const countByHostname = {};
+    const nameMap = {};
+    list.forEach((conn) => {
+      const h = conn.hostname || conn.ip || 'Unknown';
+      countByHostname[h] = (countByHostname[h] || 0) + 1;
+      nameMap[conn.id] = `${h}-${countByHostname[h]}`;
+    });
+
+    const byHostname = {};
+    list.forEach((conn) => {
+      const h = conn.hostname || conn.ip || 'Unknown';
+      if (!byHostname[h]) byHostname[h] = [];
+      byHostname[h].push(conn);
+    });
+    const hostnames = Object.keys(byHostname).sort((a, b) => a.localeCompare(b));
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', minWidth: 0 }}>
+        {hostnames.map((hostname) => {
+          const isExpanded = expandedHostnames[hostname] !== false;
+          const conns = byHostname[hostname];
+          return (
+            <div
+              key={hostname}
+              style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                backgroundColor: '#fafafa',
+              }}
+            >
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => toggleHostnameExpanded(hostname)}
+                onKeyDown={(e) => e.key === 'Enter' && toggleHostnameExpanded(hostname)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  color: '#1a365d',
+                  fontSize: '14px',
+                  backgroundColor: isExpanded ? '#f1f5f9' : '#f8fafc',
+                }}
+              >
+                {isExpanded ? (
+                  <FaChevronDown size={12} style={{ flexShrink: 0 }} />
+                ) : (
+                  <FaChevronRight size={12} style={{ flexShrink: 0 }} />
+                )}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostname}</span>
+                <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: '500', color: '#64748b' }}>
+                  {conns.length} terminal{conns.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {isExpanded && (
+                <div style={{ padding: '6px 8px 8px 24px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {conns.map((conn) => {
+                    const simpleName = nameMap[conn.id];
+                    const tId = getTIdFromConnId(conn.id);
+                    return (
+                      <div
+                        key={conn.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px 10px',
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                          gap: '8px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                          {editingTerminalId === conn.id ? (
+                            <input
+                              autoFocus
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onBlur={() => confirmActiveTerminalName(conn.id)}
+                              onKeyDown={(e) => handleEditKeyDown(e, conn.id)}
+                              style={{
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#1e3a5f',
+                                border: '1.5px solid #2563eb',
+                                borderRadius: '4px',
+                                padding: '1px 6px',
+                                outline: 'none',
+                                width: '120px',
+                                backgroundColor: '#f0f7ff',
+                              }}
+                            />
+                          ) : (
+                            <span
+                              title="Click to rename"
+                              onClick={() => startEditing(conn.id, getTerminalName(conn.id, simpleName))}
+                              style={{
+                                fontSize: '13px',
+                                color: '#1e3a5f',
+                                fontWeight: '600',
+                                whiteSpace: 'nowrap',
+                                cursor: 'text',
+                                borderBottom: '1px dashed #94a3b8',
+                                paddingBottom: '1px',
+                              }}
+                            >
+                              {getTerminalName(conn.id, simpleName)}
+                            </span>
+                          )}
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => setVisibleTooltip(visibleTooltip === conn.id ? null : conn.id)}
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                border: '1.5px solid #94a3b8',
+                                backgroundColor: 'transparent',
+                                color: '#94a3b8',
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                lineHeight: 1,
+                                padding: 0,
+                              }}
+                              title="Show terminal ID"
+                            >
+                              i
+                            </button>
+                            {visibleTooltip === conn.id && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '22px',
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  backgroundColor: '#1e293b',
+                                  color: 'white',
+                                  fontSize: '11px',
+                                  fontWeight: '500',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  whiteSpace: 'nowrap',
+                                  zIndex: 10,
+                                  pointerEvents: 'none',
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                }}
+                              >
+                                {tId}
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    width: 0,
+                                    height: 0,
+                                    borderLeft: '4px solid transparent',
+                                    borderRight: '4px solid transparent',
+                                    borderTop: '4px solid #1e293b',
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            color: '#475569',
+                            backgroundColor: '#f1f5f9',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontWeight: '500',
+                          }}
+                        >
+                          {getActionLabel(conn.action)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFocusedTerminalId(conn.id)}
+                          style={{
+                            flexShrink: 0,
+                            padding: '4px 10px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: '#2563eb',
+                            backgroundColor: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Jump
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const displayChosenList = (selectedList) => {
     const normalizedList = Array.isArray(selectedList)
@@ -286,22 +565,26 @@ const ConnectionSelectorView = () => {
         key={conn?.id ?? `${conn.ip}-${conn.hostname}`}
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
           padding: '16px',
           border: '1px solid #e2e8f0',
           borderRadius: '8px',
           backgroundColor: 'white',
           transition: 'background-color 0.2s',
+          width: '100%',
+          boxSizing: 'border-box',
+          minWidth: 0,
+          gap: '12px',
         }}
       >
         {connectionsTab === 'all' && (
           <div
             style={{
+              flexShrink: 0,
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              margin: 5,
               cursor: 'pointer',
             }}
             onClick={() => handleConnStarring(conn)}
@@ -316,25 +599,29 @@ const ConnectionSelectorView = () => {
         <div
           style={{
             display: 'flex',
-            width: '100%',
+            flex: 1,
+            minWidth: 0,
             justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '16px',
+            alignItems: 'flex-start',
+            gap: '12px',
+            flexWrap: 'wrap',
           }}
         >
-          <div>
+          <div style={{ minWidth: 0, flex: '1 1 120px' }}>
             <h3
               style={{
                 margin: 0,
                 color: '#1a365d',
                 fontSize: '16px',
                 fontWeight: '500',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
               }}
             >
               {conn.hostname}
             </h3>
 
-            <p style={{ color: '#64748b', fontSize: '14px', margin: '2px 0' }}>
+            <p style={{ color: '#64748b', fontSize: '14px', margin: '2px 0', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
               IP: {conn.ip}
             </p>
 
@@ -364,6 +651,7 @@ const ConnectionSelectorView = () => {
           {connectionsTab === 'all' && (
             <div
               style={{
+                flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'stretch',
@@ -405,15 +693,17 @@ const ConnectionSelectorView = () => {
   return (
     <div
       style={{
-        width: '50%',
-        padding: '32px',
+        width: '100%',
+        minWidth: 0,
+        padding: '24px',
         boxSizing: 'border-box',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'hidden',
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <div>
-        <div style={{ width: '20vw' }}>
+      <div style={{ width: '100%', minWidth: 0 }}>
+        <div style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           {connectionsList.length === 0 ? (
             <div
               style={{
@@ -452,6 +742,9 @@ const ConnectionSelectorView = () => {
                 padding: '16px',
                 border: '1px solid #e2e8f0',
                 borderRadius: '8px',
+                width: '100%',
+                boxSizing: 'border-box',
+                minWidth: 0,
               }}
             >
               <div
@@ -497,11 +790,14 @@ const ConnectionSelectorView = () => {
                   gap: '10px',
                   maxHeight: '70vh',
                   overflowY: 'auto',
+                  overflowX: 'hidden',
+                  width: '100%',
+                  minWidth: 0,
                 }}
               >
                 {connectionsTab === 'all'
                   ? displayChosenList(sortedConns)
-                  : displayChosenList(activeTerminals)}
+                  : displayActiveTerminalsTree(activeTerminals)}
               </div>
             </div>
           )}
