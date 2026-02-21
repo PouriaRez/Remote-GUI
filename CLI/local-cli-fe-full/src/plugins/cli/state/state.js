@@ -10,6 +10,7 @@ export const cliState = create(
       modalView: null,
       activeConnection: {},
       connectionsList: [],
+      focusedTerminalId: null,
       
       setCredLocked: (lockedState) => set({ credLocked: lockedState }),
       
@@ -18,7 +19,9 @@ export const cliState = create(
       clearSecretsCache: () => set({ secretsCache: {} }),
       
       setModalView: (name) => set({ modalView: name }),
-      
+
+      setFocusedTerminalId: (id) => set({ focusedTerminalId: id }),
+
       setConnectionsList: (connections) => set({ connectionsList: connections }),
       
       addConnection: (connection) => set((state) => ({

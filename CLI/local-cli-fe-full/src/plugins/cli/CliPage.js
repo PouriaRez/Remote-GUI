@@ -57,25 +57,50 @@ export default function CliPage() {
       <div
         style={{
           width: '100%',
-          height: '100%',
+          flex: 1,
+          minHeight: 0,
           display: 'flex',
-          alignItems: 'flex-start',
+          flexDirection: 'row',
+          alignItems: 'stretch',
           backgroundColor: 'white',
           borderRadius: '12px',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
           border: '1px solid #e2e8f0',
         }}
       >
-        <ConnectionSelectorView
-          connections={connections}
-          setConnections={setConnections}
-        />
+        <div
+          style={{
+            flex: '0 0 400px',
+            width: '400px',
+            minWidth: '400px',
+            borderRight: '1px solid #e2e8f0',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <ConnectionSelectorView
+            connections={connections}
+            setConnections={setConnections}
+          />
+        </div>
+
         {numberOfActiveConnections > 0 ? (
-          <ConnectionView conn={activeConnection} />
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <ConnectionView conn={activeConnection} />
+          </div>
         ) : (
           <div
             style={{
-              height: '100%',
+              flex: 1,
+              minWidth: 0,
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',

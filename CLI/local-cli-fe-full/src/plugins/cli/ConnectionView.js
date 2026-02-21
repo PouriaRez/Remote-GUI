@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import "../../styles/CLIPage.css";
 import TerminalView from "./subcomponents/TerminalView";
 import StatusBar from "./subcomponents/StatusBar";
+import { cliState } from "./state/state";
 
 // Plugin metadata - used by the plugin loader
 export const pluginMetadata = {
@@ -8,44 +10,84 @@ export const pluginMetadata = {
 	icon: null,
 };
 const ConnectionView = ({ conn }) => {
+	const entries = Object.entries(conn);
+	const focusedTerminalId = cliState((s) => s.focusedTerminalId);
+	const setFocusedTerminalId = cliState((s) => s.setFocusedTerminalId);
+
+	useEffect(() => {
+		if (!focusedTerminalId) return;
+		const el = document.getElementById(`terminal-card-${focusedTerminalId}`);
+		if (el) {
+			el.scrollIntoView({ behavior: "smooth", block: "start" });
+		}
+		setFocusedTerminalId(null);
+	}, [focusedTerminalId, setFocusedTerminalId]);
+
 	return (
-		<>
+		<div
+			style={{
+				flex: 1,
+				minWidth: 0,
+				minHeight: 0,
+				display: "flex",
+				flexDirection: "column",
+				padding: "16px",
+				boxSizing: "border-box",
+				overflow: "hidden",
+			}}
+		>
 			<div
 				style={{
-					width: "100%",
+					flex: 1,
+					minHeight: 0,
+					overflowY: "auto",
+					overflowX: "hidden",
 					display: "flex",
-					flexDirection: "row",
-					alignItems: "center",
-					justifyContent: "flex-start",
-					gap: "5px",
-					flexWrap: "wrap",
-					padding: "32px",
+					flexDirection: "column",
+					gap: "12px",
 				}}
 			>
-				{Object.entries(conn).map(([id, conn]) => (
+				{entries.map(([id, c]) => (
 					<div
+						key={id}
+						id={`terminal-card-${id}`}
 						style={{
-							width: "100%",
+							flex: entries.length === 1 ? "1 1 auto" : "0 0 auto",
+							...(entries.length > 1 && {
+								height: "calc(100vh - 200px)",
+								minHeight: "calc(100vh - 200px)",
+							}),
+							display: "flex",
+							flexDirection: "column",
 							border: "1px solid #e2e8f0",
 							borderRadius: "8px",
-							backgroundColor: conn.starred ? "#fffbeb" : "white",
+							backgroundColor: c.starred ? "#fffbeb" : "white",
 							transition: "background-color 0.2s",
-							padding: "4px",
+							overflow: "hidden",
 						}}
 					>
-						<StatusBar id={id} conn={conn} />
-						<TerminalView
-							id={id}
-							host={conn.ip}
-							user={conn.user}
-							credential={conn.credential}
-							action={conn.action ?? "direct_ssh"}
-							authType={conn.authType}
-						/>
+						<StatusBar id={id} conn={c} />
+						<div
+							style={{
+								flex: 1,
+								minHeight: 0,
+								display: "flex",
+								flexDirection: "column",
+							}}
+						>
+							<TerminalView
+								id={id}
+								host={c.ip}
+								user={c.user}
+								credential={c.credential}
+								action={c.action ?? "direct_ssh"}
+								authType={c.authType}
+							/>
+						</div>
 					</div>
 				))}
 			</div>
-		</>
+		</div>
 	);
 };
 
