@@ -9,8 +9,9 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
   const termRef = useRef(null);
   const wsRef = useRef(null);
   const fitRef = useRef(null);
-
   const { setIsConnected, removeActiveConnection } = cliState();
+  const API_URL = window.env?.REACT_APP_API_URL || 'http://localhost:8000/';
+  var strippedURL = (strippedURL = API_URL.replace('http://', ''));
 
   const isConnected = cliState(
     (state) => state.activeConnection[id]?.isConnected ?? false,
@@ -46,6 +47,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
       console.log(
         `Connecting to host ${host} through ${action} with ${authType}`,
       );
+      console.log('NEW URL!!!!!! ', strippedURL);
 
       const term = new Terminal({
         cursorBlink: true,
@@ -101,7 +103,7 @@ const TerminalView = ({ id, host, user, credential, action, authType }) => {
         };
       }
 
-      const ws = new WebSocket('ws://localhost:8000/cli/ws');
+      const ws = new WebSocket(`ws://${strippedURL}cli/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {

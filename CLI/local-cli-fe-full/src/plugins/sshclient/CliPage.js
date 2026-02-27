@@ -12,6 +12,11 @@ const MODAL_MAPPINGS = {
   CUSTOM_CONNECTION: AddConnectionView,
   VAULT: VaultView,
 };
+// Plugin metadata - used by the plugin loader
+export const pluginMetadata = {
+  name: 'SSH Client',
+  icon: null,
+};
 
 export default function CliPage() {
   const [numberOfActiveConnections, SetNumberOfActiveConnections] = useState(0);
@@ -32,8 +37,6 @@ export default function CliPage() {
   const ActiveModalComponent = MODAL_MAPPINGS[modalView];
 
   useEffect(() => {
-    // console.log('Active connection: ', activeConnection);
-
     SetNumberOfActiveConnections(Object.values(activeConnection).length);
   }, [activeConnection]);
 
